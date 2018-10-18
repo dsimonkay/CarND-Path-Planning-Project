@@ -8,6 +8,8 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
+#include "spline.h"
+#include "constants.h"
 
 using namespace std;
 
@@ -23,46 +25,49 @@ double rad2deg(double x) { return x * 180 / pi(); }
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
 string hasData(string s) {
+
   auto found_null = s.find("null");
   auto b1 = s.find_first_of("[");
   auto b2 = s.find_first_of("}");
+
   if (found_null != string::npos) {
     return "";
+
   } else if (b1 != string::npos && b2 != string::npos) {
     return s.substr(b1, b2 - b1 + 2);
   }
+
   return "";
 }
 
-double distance(double x1, double y1, double x2, double y2)
-{
+
+double distance(double x1, double y1, double x2, double y2) {
 	return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
 }
-int ClosestWaypoint(double x, double y, const vector<double> &maps_x, const vector<double> &maps_y)
-{
+
+
+int ClosestWaypoint(double x, double y, const vector<double> &maps_x, const vector<double> &maps_y) {
 
 	double closestLen = 100000; //large number
 	int closestWaypoint = 0;
 
-	for(int i = 0; i < maps_x.size(); i++)
-	{
+	for(int i = 0; i < maps_x.size(); i++) {
+
 		double map_x = maps_x[i];
 		double map_y = maps_y[i];
 		double dist = distance(x,y,map_x,map_y);
-		if(dist < closestLen)
-		{
+		if(dist < closestLen) {
+
 			closestLen = dist;
 			closestWaypoint = i;
 		}
-
 	}
 
 	return closestWaypoint;
-
 }
 
-int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y)
-{
+
+int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y) {
 
 	int closestWaypoint = ClosestWaypoint(x,y,maps_x,maps_y);
 
@@ -74,27 +79,26 @@ int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
 	double angle = fabs(theta-heading);
   angle = min(2*pi() - angle, angle);
 
-  if(angle > pi()/4)
-  {
+  if(angle > pi()/4) {
+
     closestWaypoint++;
-  if (closestWaypoint == maps_x.size())
-  {
-    closestWaypoint = 0;
-  }
+    if (closestWaypoint == maps_x.size()) {
+      closestWaypoint = 0;
+    }
   }
 
   return closestWaypoint;
 }
 
+
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-vector<double> getFrenet(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y)
-{
+vector<double> getFrenet(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y) {
+
 	int next_wp = NextWaypoint(x,y, theta, maps_x,maps_y);
 
 	int prev_wp;
 	prev_wp = next_wp-1;
-	if(next_wp == 0)
-	{
+	if(next_wp == 0) {
 		prev_wp  = maps_x.size()-1;
 	}
 
@@ -117,31 +121,28 @@ vector<double> getFrenet(double x, double y, double theta, const vector<double> 
 	double centerToPos = distance(center_x,center_y,x_x,x_y);
 	double centerToRef = distance(center_x,center_y,proj_x,proj_y);
 
-	if(centerToPos <= centerToRef)
-	{
+	if(centerToPos <= centerToRef) {
 		frenet_d *= -1;
 	}
 
 	// calculate s value
 	double frenet_s = 0;
-	for(int i = 0; i < prev_wp; i++)
-	{
+	for(int i = 0; i < prev_wp; i++) {
 		frenet_s += distance(maps_x[i],maps_y[i],maps_x[i+1],maps_y[i+1]);
 	}
 
 	frenet_s += distance(0,0,proj_x,proj_y);
 
 	return {frenet_s,frenet_d};
-
 }
 
+
 // Transform from Frenet s,d coordinates to Cartesian x,y
-vector<double> getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
-{
+vector<double> getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y) {
+
 	int prev_wp = -1;
 
-	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) ))
-	{
+	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) )) {
 		prev_wp++;
 	}
 
@@ -160,18 +161,19 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 	double y = seg_y + d*sin(perp_heading);
 
 	return {x,y};
-
 }
 
+
 int main() {
+
   uWS::Hub h;
 
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
   vector<double> map_waypoints_x;
   vector<double> map_waypoints_y;
   vector<double> map_waypoints_s;
-  vector<double> map_waypoints_dx;
-  vector<double> map_waypoints_dy;
+  vector<double> map_waypoints_dx;  // normal component x to the waypoint
+  vector<double> map_waypoints_dy;  // normal component y to the waypoint
 
   // Waypoint map to read from
   string map_file_ = "../data/highway_map.csv";
@@ -182,6 +184,7 @@ int main() {
 
   string line;
   while (getline(in_map_, line)) {
+
   	istringstream iss(line);
   	double x;
   	double y;
@@ -200,8 +203,14 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  // current vehicle lane and base reference velocity
+  int lane = 1;
+  double reference_v = REFERENCE_V;
+
+  h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy,
+               &max_s, &lane, &reference_v](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
+
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -235,15 +244,159 @@ int main() {
           	double end_path_d = j[1]["end_path_d"];
 
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
+            // Sensor fusion data element format: (id, x, y, vx, vy, s, d)
           	auto sensor_fusion = j[1]["sensor_fusion"];
 
-          	json msgJson;
 
+            // the resulting path plan
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
 
+            int prev_size = previous_path_x.size();
 
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+            // limiting the number of points used from the previous run
+            prev_size = min(prev_size, PREV_WAYPOINTS_USED);
+
+            if ( prev_size > 0 ) {
+              car_s = end_path_s;
+            }
+
+            bool too_close = false;
+
+            // find reference_v to use
+            for ( int i = 0;  i < sensor_fusion.size(); i++ ) {
+
+              float d = sensor_fusion[i][6];
+              // is that narrow enough?...
+              if ( d > 4*lane  &&  d < 4*(lane+1) ) {
+
+                // this car is in the ego vehicle's lane
+                double vx = sensor_fusion[i][3];
+                double vy = sensor_fusion[i][4];
+                double check_speed = sqrt(vx*vx + vy*vy);
+                double check_car_s = sensor_fusion[i][5];
+
+                // if using previous points can project s value out
+                check_car_s += (double)prev_size * TIME_INTERVAL * check_speed;
+
+                // check s values greater than mine and gap
+                if ( check_car_s > car_s  &&  (check_car_s - car_s) < PROXIMITY_GAP) {
+
+                  // TODO: do some logic here, lower reference velocity so we don't crash into the
+                  // car in front of us.
+                  // NOTE: could also flag to try to change lanes
+                  reference_v *= 0.8;
+                  too_close = true;
+                }
+              }
+
+            }
+
+
+            // variables that will hold the X-Y coordinates of the reference points for the spline
+            std::vector<double> pts_x;
+            std::vector<double> pts_y;
+
+            double ref_x = car_x;
+            double ref_y = car_y;
+            double ref_yaw = deg2rad(car_yaw);
+            double ref_x_prev;
+            double ref_y_prev;
+
+            // if the previous path is almost empty, using the car's position as starting reference
+            if ( prev_size < 2 ) {
+
+              // using two points that make the path tangent to the car.
+              // NOTE: cos() expects an angle in radians! -- thus the usage of ref_yaw instead of car_yaw
+              ref_x_prev = car_x - cos(ref_yaw);
+              ref_y_prev = car_y - sin(ref_yaw);
+
+            } else { // using the previous path's end point as starting reference
+
+              // redefine reference state as previous path's end point
+              ref_x = previous_path_x[prev_size - 1];
+              ref_y = previous_path_y[prev_size - 1];
+
+              ref_x_prev = previous_path_x[prev_size - 2];
+              ref_y_prev = previous_path_y[prev_size - 2];
+              ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
+            }
+
+            // common operation: pushing two points onto the spline defining arrays
+            // that make the path tangent to the car
+            pts_x.push_back(ref_x_prev);
+            pts_x.push_back(ref_x);
+
+            pts_y.push_back(ref_y_prev);
+            pts_y.push_back(ref_y);
+
+            // adding evenly spaced points in Frenet (transformed to global map coordinates)
+            // ahead of the starting reference
+            vector<double> next_wp0 = getXY(car_s + 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp1 = getXY(car_s + 60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp2 = getXY(car_s + 90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+            pts_x.push_back(next_wp0[0]);
+            pts_x.push_back(next_wp1[0]);
+            pts_x.push_back(next_wp2[0]);
+
+            pts_y.push_back(next_wp0[1]);
+            pts_y.push_back(next_wp1[1]);
+            pts_y.push_back(next_wp2[1]);
+
+            // transforming the X-Y coordinates describing the spline to the vehicle's local coordinate system
+            for( int i = 0;  i < pts_x.size();  i++ ) {
+
+              // the map coordinates of the ith waypoint relative to the car (or reference point)
+              double shift_x = pts_x[i] - ref_x;
+              double shift_y = pts_y[i] - ref_y;
+
+              // transforming that point to local car coordinates
+              pts_x[i] = shift_x * cos(-ref_yaw) - shift_y * sin(-ref_yaw);
+              pts_y[i] = shift_x * sin(-ref_yaw) + shift_y * cos(-ref_yaw);
+            }
+
+            // start with all of the previous path points from last time
+            for ( int i = 0;  i < prev_size; i++ ) {
+
+              next_x_vals.push_back(previous_path_x[i]);
+              next_y_vals.push_back(previous_path_y[i]);
+            }
+
+            // creating the spline
+            tk::spline s;
+            s.set_points(pts_x, pts_y);
+
+            // calculate how to break up spline points so that we travel at our desired reference velocity...
+            double target_x = 30.0;
+            double target_y = s(target_x);
+            double target_dist = sqrt(target_x * target_x + target_y * target_y);
+
+            // ...as presented in Aaron's 'visualisation'
+            const double N = target_dist / (TIME_INTERVAL * reference_v);
+            const double x_add_on_unit = target_x / N;
+            double x_point = 0.0;
+
+            // fill up the rest of our path planner after filling it previuos points.
+            for ( int i = 1;  i <= WAYPOINTS - prev_size;  i++ ) {
+
+              x_point += x_add_on_unit;
+              double y_point = s(x_point);
+
+              // transforming back from local to global coordinate system
+              double x_global = x_point * cos(ref_yaw) - y_point * sin(ref_yaw);
+              double y_global = x_point * sin(ref_yaw) + y_point * cos(ref_yaw);
+
+              // we need global coordinates: shifting the point relative to the global map's origo
+              x_global += ref_x;
+              y_global += ref_y;
+
+              next_x_vals.push_back(x_global);
+              next_y_vals.push_back(y_global);
+            }
+
+
+            json msgJson;
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 
@@ -251,46 +404,52 @@ int main() {
 
           	//this_thread::sleep_for(chrono::milliseconds(1000));
           	ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-          
+            }
         }
+
       } else {
         // Manual driving
         std::string msg = "42[\"manual\",{}]";
         ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
       }
     }
-  });
+  );
 
-  // We don't need this since we're not using HTTP but if it's removed the
-  // program
-  // doesn't compile :-(
-  h.onHttpRequest([](uWS::HttpResponse *res, uWS::HttpRequest req, char *data,
-                     size_t, size_t) {
+
+  // We don't need this since we're not using HTTP but if it's removed,
+  // the program doesn't compile :-(
+  h.onHttpRequest([](uWS::HttpResponse *res, uWS::HttpRequest req, char *data, size_t, size_t) {
+
     const std::string s = "<h1>Hello world!</h1>";
     if (req.getUrl().valueLength == 1) {
       res->end(s.data(), s.length());
+
     } else {
       // i guess this should be done more gracefully?
       res->end(nullptr, 0);
     }
   });
 
+
   h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
     std::cout << "Connected!!!" << std::endl;
   });
 
-  h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code,
-                         char *message, size_t length) {
+
+  h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code, char *message, size_t length) {
     ws.close();
     std::cout << "Disconnected" << std::endl;
   });
 
+
   int port = 4567;
   if (h.listen(port)) {
     std::cout << "Listening to port " << port << std::endl;
+
   } else {
     std::cerr << "Failed to listen to port" << std::endl;
     return -1;
   }
+
   h.run();
 }
