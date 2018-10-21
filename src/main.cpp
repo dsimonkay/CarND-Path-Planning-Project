@@ -177,8 +177,6 @@ int main() {
 
   // Waypoint map to read from
   string map_file_ = "../data/highway_map.csv";
-  // The max s value before wrapping around the track back to 0
-  double max_s = 6945.554;
 
   ifstream in_map_(map_file_.c_str(), ifstream::in);
 
@@ -203,13 +201,12 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  // current vehicle lane and base reference velocity
+  // initial ego vehicle lane and reference velocity
   int lane = 1;
-  double reference_v = REFERENCE_V;
+  double reference_v = 0.0;
 
   h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy,
-               &max_s, &lane, &reference_v](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-                     uWS::OpCode opCode) {
+               &lane, &reference_v](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
 
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -239,14 +236,14 @@ int main() {
           	// Previous path data given to the Planner
           	auto previous_path_x = j[1]["previous_path_x"];
           	auto previous_path_y = j[1]["previous_path_y"];
+
           	// Previous path's end s and d values 
           	double end_path_s = j[1]["end_path_s"];
           	double end_path_d = j[1]["end_path_d"];
 
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
-            // Sensor fusion data element format: (id, x, y, vx, vy, s, d)
+            // Data element format: [id, x, y, vx, vy, s, d]
           	auto sensor_fusion = j[1]["sensor_fusion"];
-
 
             // the resulting path plan
           	vector<double> next_x_vals;
@@ -255,41 +252,52 @@ int main() {
             int prev_size = previous_path_x.size();
 
             // limiting the number of points used from the previous run
-            prev_size = min(prev_size, PREV_WAYPOINTS_USED);
+            // prev_size = min(prev_size, PREV_WAYPOINTS_USED);
 
-            if ( prev_size > 0 ) {
-              car_s = end_path_s;
-            }
+            // determining the best known future position of the ego vehicle
+            double car_future_s = prev_size > 0 ? end_path_s : car_s;
 
             bool too_close = false;
 
-            // find reference_v to use
+            // finding the nearest vehicle ahead of us in the same lane as we are currently in
             for ( int i = 0;  i < sensor_fusion.size(); i++ ) {
 
               float d = sensor_fusion[i][6];
-              // is that narrow enough?...
+              // further investigation is needed in case this car is in the ego vehicle's lane
               if ( d > 4*lane  &&  d < 4*(lane+1) ) {
 
-                // this car is in the ego vehicle's lane
                 double vx = sensor_fusion[i][3];
                 double vy = sensor_fusion[i][4];
                 double check_speed = sqrt(vx*vx + vy*vy);
                 double check_car_s = sensor_fusion[i][5];
 
-                // if using previous points can project s value out
-                check_car_s += (double)prev_size * TIME_INTERVAL * check_speed;
+                // correcting the anomaly that might occur due the closed nature of this very highway
+                check_car_s += (check_car_s < car_s_original ? MAX_S : 0);
 
-                // check s values greater than mine and gap
-                if ( check_car_s > car_s  &&  (check_car_s - car_s) < PROXIMITY_GAP) {
+                // if using previous points can project s value out
+                double check_car_future_s = check_car_s + (double)prev_size * TIME_INTERVAL * check_speed;
+
+                // check whether this car's distance will be within a certain value in the future
+                if ( check_car_future_s > car_future_s  &&  (check_car_future_s - car_future_s) < PROXIMITY_GAP) {
 
                   // TODO: do some logic here, lower reference velocity so we don't crash into the
                   // car in front of us.
                   // NOTE: could also flag to try to change lanes
-                  reference_v *= 0.8;
                   too_close = true;
+                  if ( lane > 0 ) {
+                    lane = 0;
+                  }
                 }
               }
+            }
 
+
+            if ( too_close ) {
+              reference_v -= UNIT_CHANGE_V;
+
+            } else if ( reference_v < REFERENCE_V ) {
+              reference_v += UNIT_CHANGE_V;
+              reference_v = min(reference_v, REFERENCE_V);
             }
 
 
@@ -330,8 +338,8 @@ int main() {
             pts_y.push_back(ref_y_prev);
             pts_y.push_back(ref_y);
 
-            // adding evenly spaced points in Frenet (transformed to global map coordinates)
-            // ahead of the starting reference
+            // adding evenly spaced points in Frenet ahead of the starting reference
+            // and transforming them to global map coordinates right away
             vector<double> next_wp0 = getXY(car_s + 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
             vector<double> next_wp1 = getXY(car_s + 60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
             vector<double> next_wp2 = getXY(car_s + 90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
