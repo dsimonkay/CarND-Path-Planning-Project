@@ -222,9 +222,11 @@ int main() {
   // initial ego vehicle lane and reference velocity
   int lane = 1;
   double reference_v = 0.0;
+  double target_v = REFERENCE_V;
+  double end_path_v = 0.0;
 
   h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy,
-               &lane, &reference_v](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+               &lane, &target_v, &end_path_v](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
 
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -293,6 +295,8 @@ int main() {
           bool lane_change_needed = false;
           bool slow_down = false; 
 
+          // we're pretty optimistic
+          double target_v = REFERENCE_V;
 
           // Collecting information about the vehicles that are the closest to our position (along the S axis) --
           // also in the current as well as in all neighboring lanes.
@@ -339,7 +343,7 @@ int main() {
               lane_key = "right_";
 
             } else {
-              // the vehicle is too far away from our lane to be interesting for us right now
+              // we're not interested in a vehicle which is two lanes away from our lane
               continue;
             }
 
@@ -411,7 +415,7 @@ int main() {
           }
 
           // now that we have all required information at our hands...
-          if ( nearest_vehicles["center_ahead"].idx > -1  &&  nearest_vehicles["center_ahead"].future_distance < PROXIMITY_FRONTIER ) {
+          if ( nearest_vehicles["center_ahead"].id > -1  &&  nearest_vehicles["center_ahead"].future_distance < PROXIMITY_FRONTIER ) {
 
             cout << "LANE CHANGE NEEDED. Distance to the closest car (" << nearest_vehicles["center_ahead"].id << ") in the future: " << nearest_vehicles["center_ahead"].future_distance << " meters (actual: " << nearest_vehicles["center_ahead"].distance << " meters)" << endl;
             lane_change_needed = true;
@@ -420,12 +424,12 @@ int main() {
 
           if ( lane_change_needed ) {
 
-            bool lane_change_realizable = false;
+            bool lane_change_feasible = false;
 
             // trying to change the lane: find whether there' enough gap for a merge
             // TODO: use cost functions and stuff
 
-            if ( lane_change_realizable ) {
+            if ( lane_change_feasible ) {
 
               // TODO: do the lane change
 
@@ -434,7 +438,8 @@ int main() {
               // which is ahead of us
               cout << "Slowing down." << endl;
               slow_down = true;
-              reference_v -= UNIT_CHANGE_V;
+              // reference_v -= UNIT_CHANGE_V;
+              target_v = nearest_vehicles["center_ahead"].speed;
             }
 
           } else {
@@ -442,8 +447,9 @@ int main() {
             // just keep on driving in the current lane while trying to maximize velocity
             // TO DO
             cout << "Accelerating / keeping max. velocity (no lane change needed)." << endl;
-            reference_v += UNIT_CHANGE_V;
-            reference_v = min(reference_v, REFERENCE_V);
+            // reference_v += UNIT_CHANGE_V;
+            // reference_v = min(reference_v, REFERENCE_V);
+            target_v = REFERENCE_V;
           }
 
 
@@ -527,24 +533,39 @@ int main() {
           }
 
 
+
           // creating the spline
           tk::spline s;
           s.set_points(pts_x, pts_y);
 
-          // calculate how to break up spline points so that we travel at our desired reference velocity...
-          double target_x = 30.0;
-          double target_y = s(target_x);
-          double target_dist = sqrt(target_x * target_x + target_y * target_y);
+          // So we have a target velocity to reach (and we're gonna generate at least one point)
+          int path_segments_to_generate = max(1, PREDICTED_WAYPOINTS - prev_size);
+          double v_diff = target_v - end_path_v;
+          double segment_v_change = v_diff / path_segments_to_generate;
 
-          // ...as presented in Aaron's 'visualisation'
-          const double N = target_dist / (TIME_INTERVAL * reference_v);
-          const double x_add_on_unit = target_x / N;
+          // velocity change must not exceed the threshold
+          if ( abs(segment_v_change) - MAX_V_CHANGE > 0.01 ) {
+            segment_v_change = segment_v_change < 0 ? -MAX_V_CHANGE : MAX_V_CHANGE;
+          }
+
           double x_point = 0.0;
+          double segment_v = end_path_v;
 
-          // fill up the rest of our path planner after filling it previuos points.
-          for ( int i = 1;  i <= WAYPOINTS - prev_size;  i++ ) {
+          // generating the rest of the points for the path planner
+          for ( int i = 0;  i < path_segments_to_generate - prev_size;  i++ ) {
 
-            x_point += x_add_on_unit;
+            // calculating the new velocity...
+            segment_v += segment_v_change;
+
+            // ...and applying constraints to it
+            segment_v = min(target_v, segment_v);
+            segment_v = min(REFERENCE_V, segment_v);
+            segment_v = max(0.0, segment_v);
+
+            // storing the resulting value as the new "end-of-path" velocity
+            end_path_v = segment_v;
+
+            x_point += TIME_INTERVAL * segment_v;
             double y_point = s(x_point);
 
             // transforming back from local to global coordinate system
@@ -558,6 +579,35 @@ int main() {
             next_x_vals.push_back(x_global);
             next_y_vals.push_back(y_global);
           }
+
+          // // calculate how to break up spline points so that we travel at our desired reference velocity...
+          // double target_x = 30.0;
+          // double target_y = s(target_x);
+          // double target_dist = sqrt(target_x * target_x + target_y * target_y);
+
+          // // ...as presented in Aaron's 'visualisation'
+          // const double N = target_dist / (TIME_INTERVAL * reference_v);
+          // const double x_add_on_unit = target_x / N;
+          // double x_point = 0.0;
+
+          // // fill up the rest of our path planner after filling it previuos points.
+          // for ( int i = 1;  i <= WAYPOINTS - prev_size;  i++ ) {
+
+          //   x_point += x_add_on_unit;
+          //   double y_point = s(x_point);
+
+          //   // transforming back from local to global coordinate system
+          //   double x_global = x_point * cos(ref_yaw) - y_point * sin(ref_yaw);
+          //   double y_global = x_point * sin(ref_yaw) + y_point * cos(ref_yaw);
+
+          //   // we need global coordinates: shifting the point relative to the global map's origo
+          //   x_global += ref_x;
+          //   y_global += ref_y;
+
+          //   next_x_vals.push_back(x_global);
+          //   next_y_vals.push_back(y_global);
+          // }
+          // ...as presented in Aaron's 'visualisation'
 
 
           json msgJson;

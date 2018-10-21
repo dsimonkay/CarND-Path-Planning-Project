@@ -6,24 +6,22 @@
 const double MAX_S = 6945.554;
 
 // lane width
-const double LANE_WIDTH = 4.0;  // meters
+const double LANE_WIDTH = 4.0;            // meters
 
-// number of waypoints predicted
-const int WAYPOINTS = 50;
-
-// number of previous waypoints used
-const int PREV_WAYPOINTS_USED = 20;
+// number of waypoints predicted by the planner
+const int PREDICTED_WAYPOINTS = 50;
 
 // time interval
-const double TIME_INTERVAL = 0.02;  // seconds
+const double TIME_INTERVAL = 0.02;        // seconds
 
-// maximum allowed distance between the ego vehicle and the car in front of us
-const double PROXIMITY_FRONTIER = 30.0;
+// distance limit between the ego vehicle and the car in front of us
+// where the ego vehicle starts to think about a lane change to pass that car
+const double PROXIMITY_FRONTIER = 20.0;   // meters
 
 // used reference velocity for maximum speed
-const double REFERENCE_V = 22.1;    // 22.1 meter/second = 49.504 miles/hour
+const double REFERENCE_V = 22.2;          // 22.2 meter/second = 49.65999 miles/hour
 
-// velocity changing unit
-const double UNIT_CHANGE_V = 0.4;   // m/s within 0.02 seconds
+// the absolute value of the velocity change must not exceed this threshold
+const double MAX_V_CHANGE = 0.1;         // m/s within 0.02 seconds
 
 #endif /* CARND_PATH_PLANNER_CONSTANS_H */
