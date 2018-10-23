@@ -219,10 +219,14 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  // initial ego vehicle lane and reference velocity
+  // initial ego vehicle lane
   int lane = 1;
-  double reference_v = 0.0;
+  // double reference_v = 0.0;
+
+  // target_v holds the velocity value which we would like to reach (in an optimistic case at the end of the predicted path)
   double target_v = REFERENCE_V;
+
+  // previous path's end velocity
   double end_path_v = 0.0;
 
   h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy,
@@ -271,22 +275,6 @@ int main() {
 
           int prev_size = previous_path_x.size();
 
-          // defining the variables which will be used in the sensor fusion data processing loop multiple times
-          int i;
-          double vx;
-          double vy;
-          double check_car_speed;
-          double check_car_s;
-          double check_car_s_future;
-          double check_car_d;
-          int check_car_lane;
-          double distance_to_vehicle;
-          double future_distance_to_vehicle;
-          string lane_key;
-          string ahead;
-          string behind;
-          bool check_car_is_ahead; 
-
           // determining the best known future position of the ego vehicle
           double car_s_now = car_s;
           double car_s_future = prev_size > 0 ? end_path_s : car_s;
@@ -309,14 +297,14 @@ int main() {
           nearest_vehicles["right_behind"] = {-1, -1, 0.0, 0.0, 0.0, 0.0, 0.0, numeric_limits<double>::min(), 0, 0.0, 0.0, numeric_limits<double>::min()};
 
           // Processing sensor fusion data
-          for ( i = 0;  i < sensor_fusion.size(); i++ ) {
+          for ( int i = 0;  i < sensor_fusion.size(); i++ ) {
 
-            vx = sensor_fusion[i][3];
-            vy = sensor_fusion[i][4];
-            check_car_speed = sqrt(vx*vx + vy*vy);
-            check_car_s = (double)(sensor_fusion[i][5]);
-            check_car_d = (double)(sensor_fusion[i][6]);
-            check_car_lane = (int)(check_car_d / LANE_WIDTH);
+            double vx = sensor_fusion[i][3];
+            double vy = sensor_fusion[i][4];
+            double check_car_speed = sqrt(vx*vx + vy*vy);
+            double check_car_s = (double)(sensor_fusion[i][5]);
+            double check_car_d = (double)(sensor_fusion[i][6]);
+            double check_car_lane = (int)(check_car_d / LANE_WIDTH);
 
             // ignoring the vehicles on the other side of the road
             if ( check_car_d < 0 ) {
@@ -327,12 +315,13 @@ int main() {
             // check_car_s += (check_car_s < car_s_now ? MAX_S : 0);
 
             // is this vehicle in frond of us or behind us (along the S axis)?
-            check_car_is_ahead = check_car_s > car_s_now;
+            bool check_car_is_ahead = check_car_s > car_s_now;
 
             // projecting the vehicle's position into the future
-            check_car_s_future = check_car_s + (double)prev_size * TIME_INTERVAL * check_car_speed;
+            double check_car_s_future = check_car_s + (double)prev_size * TIME_INTERVAL * check_car_speed;
 
             // assembling info register key: lane part
+            string lane_key;
             if ( check_car_lane == lane - 1 ) {
               lane_key = "left_";
 
@@ -348,15 +337,15 @@ int main() {
             }
 
             // assembling keys, part 2: appending "ahead" and "behind"
-            ahead = lane_key;
+            string ahead = lane_key;
             ahead.append("ahead");
 
-            behind = lane_key;
+            string behind = lane_key;
             behind.append("behind");
 
             // calculating vehicle distance now and in the predicted future
-            distance_to_vehicle = (double)(sensor_fusion[i][5]) - car_s_now;
-            future_distance_to_vehicle = check_car_s_future - car_s_future;
+            double distance_to_vehicle = (double)(sensor_fusion[i][5]) - car_s_now;
+            double future_distance_to_vehicle = check_car_s_future - car_s_future;
 
             // if ( check_car_is_ahead  &&  future_distance_to_vehicle < nearest_vehicles[ahead].future_distance ) {
             if ( check_car_is_ahead  &&  distance_to_vehicle < nearest_vehicles[ahead].distance ) {
@@ -424,19 +413,30 @@ int main() {
 
           if ( lane_change_needed ) {
 
-            bool lane_change_feasible = false;
+            bool left_lane_change_feasible = lane > 0;
+            left_lane_change_feasible &= nearest_vehicles["left_ahead"].id == -1 || nearest_vehicles["left_ahead"].future_s > nearest_vehicles["center_ahead"].future_s + 2*VEHICLE_LENGTH;
+            left_lane_change_feasible &= nearest_vehicles["left_behind"].id == -1 || nearest_vehicles["left_nehind"].future_s < nearest_vehicles["center_ahead"].future_s - 2*VEHICLE_LENGTH;
+
+            bool right_lane_change_feasible = lane < 2;
+            right_lane_change_feasible &= nearest_vehicles["right_ahead"].id == -1 || nearest_vehicles["right_ahead"].future_s > nearest_vehicles["center_ahead"].future_s + 2*VEHICLE_LENGTH;
+            right_lane_change_feasible &= nearest_vehicles["right_behind"].id == -1 || nearest_vehicles["right_nehind"].future_s < nearest_vehicles["center_ahead"].future_s - 2*VEHICLE_LENGTH;
 
             // trying to change the lane: find whether there' enough gap for a merge
-            // TODO: use cost functions and stuff
+            if ( left_lane_change_feasible || right_lane_change_feasible ) {
 
-            if ( lane_change_feasible ) {
+              // do the lane change
+              // TODO: adjust velocity right on
+              if ( left_lane_change_feasible ) {
+                lane--;
 
-              // TODO: do the lane change
+              } else if ( right_lane_change_feasible ) {
+                lane++;
+              }
 
             } else {
               // we can't change our lanes right now; we have to adjust our velocity to the car
               // which is ahead of us
-              cout << "Slowing down." << endl;
+              cout << "Slowing down to " << nearest_vehicles["center_ahead"].speed << " m/s" << endl;
               slow_down = true;
               // reference_v -= UNIT_CHANGE_V;
               target_v = nearest_vehicles["center_ahead"].speed;
@@ -501,9 +501,9 @@ int main() {
 
           // adding evenly spaced points in Frenet ahead of the starting reference
           // and transforming them to global map coordinates right away
-          vector<double> next_wp0 = getXY(car_s + 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s + 60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s + 90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp0 = getXY(car_s + 1.1*PROXIMITY_FRONTIER, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp1 = getXY(car_s + 2*PROXIMITY_FRONTIER, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp2 = getXY(car_s + 3*PROXIMITY_FRONTIER, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
           pts_x.push_back(next_wp0[0]);
           pts_x.push_back(next_wp1[0]);
@@ -550,9 +550,10 @@ int main() {
 
           double x_point = 0.0;
           double segment_v = end_path_v;
+          cout << "end path v: " << end_path_v;
 
           // generating the rest of the points for the path planner
-          for ( int i = 0;  i < path_segments_to_generate - prev_size;  i++ ) {
+          for ( int i = 0;  i < path_segments_to_generate;  i++ ) {
 
             // calculating the new velocity...
             segment_v += segment_v_change;
@@ -579,6 +580,8 @@ int main() {
             next_x_vals.push_back(x_global);
             next_y_vals.push_back(y_global);
           }
+
+          cout << " --> " << end_path_v << " in " << path_segments_to_generate << " steps" << endl;
 
           // // calculate how to break up spline points so that we travel at our desired reference velocity...
           // double target_x = 30.0;
