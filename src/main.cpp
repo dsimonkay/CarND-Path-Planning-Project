@@ -45,41 +45,41 @@ string hasData(string s) {
 
 
 double distance(double x1, double y1, double x2, double y2) {
-	return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
+  return sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
 }
 
 
 int ClosestWaypoint(double x, double y, const vector<double> &maps_x, const vector<double> &maps_y) {
 
-	double closestLen = 100000; //large number
-	int closestWaypoint = 0;
+  double closestLen = 100000; //large number
+  int closestWaypoint = 0;
 
-	for(int i = 0; i < maps_x.size(); i++) {
+  for(int i = 0; i < maps_x.size(); i++) {
 
-		double map_x = maps_x[i];
-		double map_y = maps_y[i];
-		double dist = distance(x,y,map_x,map_y);
-		if(dist < closestLen) {
+    double map_x = maps_x[i];
+    double map_y = maps_y[i];
+    double dist = distance(x,y,map_x,map_y);
+    if(dist < closestLen) {
 
-			closestLen = dist;
-			closestWaypoint = i;
-		}
-	}
+      closestLen = dist;
+      closestWaypoint = i;
+    }
+  }
 
-	return closestWaypoint;
+  return closestWaypoint;
 }
 
 
 int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y) {
 
-	int closestWaypoint = ClosestWaypoint(x,y,maps_x,maps_y);
+  int closestWaypoint = ClosestWaypoint(x,y,maps_x,maps_y);
 
-	double map_x = maps_x[closestWaypoint];
-	double map_y = maps_y[closestWaypoint];
+  double map_x = maps_x[closestWaypoint];
+  double map_y = maps_y[closestWaypoint];
 
-	double heading = atan2((map_y-y),(map_x-x));
+  double heading = atan2((map_y-y),(map_x-x));
 
-	double angle = fabs(theta-heading);
+  double angle = fabs(theta-heading);
   angle = min(2*pi() - angle, angle);
 
   if(angle > pi()/4) {
@@ -97,73 +97,73 @@ int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
 vector<double> getFrenet(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y) {
 
-	int next_wp = NextWaypoint(x,y, theta, maps_x,maps_y);
+  int next_wp = NextWaypoint(x,y, theta, maps_x,maps_y);
 
-	int prev_wp;
-	prev_wp = next_wp-1;
-	if(next_wp == 0) {
-		prev_wp  = maps_x.size()-1;
-	}
+  int prev_wp;
+  prev_wp = next_wp-1;
+  if(next_wp == 0) {
+    prev_wp  = maps_x.size()-1;
+  }
 
-	double n_x = maps_x[next_wp]-maps_x[prev_wp];
-	double n_y = maps_y[next_wp]-maps_y[prev_wp];
-	double x_x = x - maps_x[prev_wp];
-	double x_y = y - maps_y[prev_wp];
+  double n_x = maps_x[next_wp]-maps_x[prev_wp];
+  double n_y = maps_y[next_wp]-maps_y[prev_wp];
+  double x_x = x - maps_x[prev_wp];
+  double x_y = y - maps_y[prev_wp];
 
-	// find the projection of x onto n
-	double proj_norm = (x_x*n_x+x_y*n_y)/(n_x*n_x+n_y*n_y);
-	double proj_x = proj_norm*n_x;
-	double proj_y = proj_norm*n_y;
+  // find the projection of x onto n
+  double proj_norm = (x_x*n_x+x_y*n_y)/(n_x*n_x+n_y*n_y);
+  double proj_x = proj_norm*n_x;
+  double proj_y = proj_norm*n_y;
 
-	double frenet_d = distance(x_x,x_y,proj_x,proj_y);
+  double frenet_d = distance(x_x,x_y,proj_x,proj_y);
 
-	//see if d value is positive or negative by comparing it to a center point
+  //see if d value is positive or negative by comparing it to a center point
 
-	double center_x = 1000-maps_x[prev_wp];
-	double center_y = 2000-maps_y[prev_wp];
-	double centerToPos = distance(center_x,center_y,x_x,x_y);
-	double centerToRef = distance(center_x,center_y,proj_x,proj_y);
+  double center_x = 1000-maps_x[prev_wp];
+  double center_y = 2000-maps_y[prev_wp];
+  double centerToPos = distance(center_x,center_y,x_x,x_y);
+  double centerToRef = distance(center_x,center_y,proj_x,proj_y);
 
-	if(centerToPos <= centerToRef) {
-		frenet_d *= -1;
-	}
+  if(centerToPos <= centerToRef) {
+    frenet_d *= -1;
+  }
 
-	// calculate s value
-	double frenet_s = 0;
-	for(int i = 0; i < prev_wp; i++) {
-		frenet_s += distance(maps_x[i],maps_y[i],maps_x[i+1],maps_y[i+1]);
-	}
+  // calculate s value
+  double frenet_s = 0;
+  for(int i = 0; i < prev_wp; i++) {
+    frenet_s += distance(maps_x[i],maps_y[i],maps_x[i+1],maps_y[i+1]);
+  }
 
-	frenet_s += distance(0,0,proj_x,proj_y);
+  frenet_s += distance(0,0,proj_x,proj_y);
 
-	return {frenet_s,frenet_d};
+  return {frenet_s,frenet_d};
 }
 
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
 vector<double> getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y) {
 
-	int prev_wp = -1;
+  int prev_wp = -1;
 
-	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) )) {
-		prev_wp++;
-	}
+  while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) )) {
+    prev_wp++;
+  }
 
-	int wp2 = (prev_wp+1)%maps_x.size();
+  int wp2 = (prev_wp+1)%maps_x.size();
 
-	double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
-	// the x,y,s along the segment
-	double seg_s = (s-maps_s[prev_wp]);
+  double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+  // the x,y,s along the segment
+  double seg_s = (s-maps_s[prev_wp]);
 
-	double seg_x = maps_x[prev_wp]+seg_s*cos(heading);
-	double seg_y = maps_y[prev_wp]+seg_s*sin(heading);
+  double seg_x = maps_x[prev_wp]+seg_s*cos(heading);
+  double seg_y = maps_y[prev_wp]+seg_s*sin(heading);
 
-	double perp_heading = heading-pi()/2;
+  double perp_heading = heading-pi()/2;
 
-	double x = seg_x + d*cos(perp_heading);
-	double y = seg_y + d*sin(perp_heading);
+  double x = seg_x + d*cos(perp_heading);
+  double y = seg_y + d*sin(perp_heading);
 
-	return {x,y};
+  return {x,y};
 }
 
 struct VehicleInfo {
@@ -201,36 +201,30 @@ int main() {
   string line;
   while (getline(in_map_, line)) {
 
-  	istringstream iss(line);
-  	double x;
-  	double y;
-  	float s;
-  	float d_x;
-  	float d_y;
-  	iss >> x;
-  	iss >> y;
-  	iss >> s;
-  	iss >> d_x;
-  	iss >> d_y;
-  	map_waypoints_x.push_back(x);
-  	map_waypoints_y.push_back(y);
-  	map_waypoints_s.push_back(s);
-  	map_waypoints_dx.push_back(d_x);
-  	map_waypoints_dy.push_back(d_y);
+    istringstream iss(line);
+    double x;
+    double y;
+    float s;
+    float d_x;
+    float d_y;
+    iss >> x;
+    iss >> y;
+    iss >> s;
+    iss >> d_x;
+    iss >> d_y;
+    map_waypoints_x.push_back(x);
+    map_waypoints_y.push_back(y);
+    map_waypoints_s.push_back(s);
+    map_waypoints_dx.push_back(d_x);
+    map_waypoints_dy.push_back(d_y);
   }
 
   // initial ego vehicle lane
   int lane = 1;
-  // double reference_v = 0.0;
-
-  // target_v holds the velocity value which we would like to reach (in an optimistic case at the end of the predicted path)
-  double target_v = REFERENCE_V;
-
-  // previous path's end velocity
-  double end_path_v = 0.0;
+  double reference_v = 0.0;
 
   h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy,
-               &lane, &target_v, &end_path_v](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+               &lane, &reference_v](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
 
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -249,29 +243,29 @@ int main() {
         if (event == "telemetry") {
           // j[1] is the data JSON object
           
-        	// Main car's localization Data
-        	double car_x = j[1]["x"];
-        	double car_y = j[1]["y"];
-        	double car_s = j[1]["s"];
-        	double car_d = j[1]["d"];
-        	double car_yaw = j[1]["yaw"];
-        	double car_speed = j[1]["speed"];
+          // Main car's localization Data
+          double car_x = j[1]["x"];
+          double car_y = j[1]["y"];
+          double car_s = j[1]["s"];
+          double car_d = j[1]["d"];
+          double car_yaw = j[1]["yaw"];
+          double car_speed = j[1]["speed"];
 
-        	// Previous path data given to the Planner
-        	auto previous_path_x = j[1]["previous_path_x"];
-        	auto previous_path_y = j[1]["previous_path_y"];
+          // Previous path data given to the Planner
+          auto previous_path_x = j[1]["previous_path_x"];
+          auto previous_path_y = j[1]["previous_path_y"];
 
-        	// Previous path's end s and d values 
-        	double end_path_s = j[1]["end_path_s"];
-        	double end_path_d = j[1]["end_path_d"];
+          // Previous path's end s and d values 
+          double end_path_s = j[1]["end_path_s"];
+          double end_path_d = j[1]["end_path_d"];
 
-        	// Sensor Fusion Data, a list of all other cars on the same side of the road.
+          // Sensor Fusion Data, a list of all other cars on the same side of the road.
           // Data element format: [id, x, y, vx, vy, s, d]
-        	auto sensor_fusion = j[1]["sensor_fusion"];
+          auto sensor_fusion = j[1]["sensor_fusion"];
 
           // the resulting path plan
-        	vector<double> next_x_vals;
-        	vector<double> next_y_vals;
+          vector<double> next_x_vals;
+          vector<double> next_y_vals;
 
           int prev_size = previous_path_x.size();
 
@@ -284,7 +278,11 @@ int main() {
           bool slow_down = false; 
 
           // we're pretty optimistic
-          double target_v = REFERENCE_V;
+          double target_v = MAX_V;
+
+          // adaptive proximity gap
+          double proximity_gap = 1.2 * PROXIMITY_FRONTIER * reference_v / MAX_V;
+          proximity_gap = max(proximity_gap, MIN_GAP);
 
           // Collecting information about the vehicles that are the closest to our position (along the S axis) --
           // also in the current as well as in all neighboring lanes.
@@ -404,7 +402,7 @@ int main() {
           }
 
           // now that we have all required information at our hands...
-          if ( nearest_vehicles["center_ahead"].id > -1  &&  nearest_vehicles["center_ahead"].future_distance < PROXIMITY_FRONTIER ) {
+          if ( nearest_vehicles["center_ahead"].id > -1  &&  nearest_vehicles["center_ahead"].future_distance < proximity_gap ) {
 
             cout << "LANE CHANGE NEEDED. Distance to the closest car (" << nearest_vehicles["center_ahead"].id << ") in the future: " << nearest_vehicles["center_ahead"].future_distance << " meters (actual: " << nearest_vehicles["center_ahead"].distance << " meters)" << endl;
             lane_change_needed = true;
@@ -413,52 +411,97 @@ int main() {
 
           if ( lane_change_needed ) {
 
+            cout << "car_s_now: " << car_s_now << endl;
+
+            // trying to change the lane: find whether there's enough gap for a merge
             bool left_lane_change_feasible = lane > 0;
-            left_lane_change_feasible &= nearest_vehicles["left_ahead"].id == -1 || nearest_vehicles["left_ahead"].future_s > nearest_vehicles["center_ahead"].future_s + 2*VEHICLE_LENGTH;
-            left_lane_change_feasible &= nearest_vehicles["left_behind"].id == -1 || nearest_vehicles["left_nehind"].future_s < nearest_vehicles["center_ahead"].future_s - 2*VEHICLE_LENGTH;
+            left_lane_change_feasible &= nearest_vehicles["left_ahead"].id == -1 || nearest_vehicles["left_ahead"].future_s > nearest_vehicles["center_ahead"].future_s + VEHICLE_LENGTH;
+            left_lane_change_feasible &= nearest_vehicles["left_behind"].id == -1 || nearest_vehicles["left_behind"].future_s < nearest_vehicles["center_ahead"].future_s - proximity_gap - VEHICLE_LENGTH;
+            left_lane_change_feasible &= nearest_vehicles["left_behind"].id == -1 || nearest_vehicles["left_behind"].s < car_s_now - VEHICLE_LENGTH;
+
+            double left_lane_v = MAX_V;
+            if ( nearest_vehicles["left_ahead"].future_s < nearest_vehicles["center_ahead"].future_s + 2*proximity_gap ) {
+              left_lane_v = nearest_vehicles["left_ahead"].speed;
+            }
 
             bool right_lane_change_feasible = lane < 2;
-            right_lane_change_feasible &= nearest_vehicles["right_ahead"].id == -1 || nearest_vehicles["right_ahead"].future_s > nearest_vehicles["center_ahead"].future_s + 2*VEHICLE_LENGTH;
-            right_lane_change_feasible &= nearest_vehicles["right_behind"].id == -1 || nearest_vehicles["right_nehind"].future_s < nearest_vehicles["center_ahead"].future_s - 2*VEHICLE_LENGTH;
+            right_lane_change_feasible &= nearest_vehicles["right_ahead"].id == -1 || nearest_vehicles["right_ahead"].future_s > nearest_vehicles["center_ahead"].future_s + VEHICLE_LENGTH;
+            right_lane_change_feasible &= nearest_vehicles["right_behind"].id == -1 || nearest_vehicles["right_behind"].future_s < nearest_vehicles["center_ahead"].future_s - proximity_gap - VEHICLE_LENGTH;
+            right_lane_change_feasible &= nearest_vehicles["right_behind"].id == -1 || nearest_vehicles["right_behind"].s < car_s_now - VEHICLE_LENGTH;
 
-            // trying to change the lane: find whether there' enough gap for a merge
-            if ( left_lane_change_feasible || right_lane_change_feasible ) {
+            double right_lane_v = MAX_V;
+            if ( nearest_vehicles["right_ahead"].future_s < nearest_vehicles["center_ahead"].future_s + 2*proximity_gap ) {
+              right_lane_v = nearest_vehicles["right_ahead"].speed;
+            }
 
-              // do the lane change
-              // TODO: adjust velocity right on
-              if ( left_lane_change_feasible ) {
-                lane--;
+            if ( left_lane_change_feasible ) {
+              cout << "\tLeft change feasible." << endl;
+              cout << "\t\tLeft ahead now/future: " << nearest_vehicles["left_ahead"].s << " / " << nearest_vehicles["left_ahead"].future_s;
+              cout << "  s distance now/future: " << nearest_vehicles["left_ahead"].distance << " / " << nearest_vehicles["left_ahead"].future_distance << endl;
+              cout << "\t\tLeft behind now/future: " << nearest_vehicles["left_behind"].s << " / " << nearest_vehicles["left_behind"].future_s;
+              cout << "  s distance now/future: " << nearest_vehicles["left_behind"].distance << " / " << nearest_vehicles["left_behind"].future_distance << endl;
+            }
 
-              } else if ( right_lane_change_feasible ) {
-                lane++;
-              }
+            if ( right_lane_change_feasible ) {
+              cout << "\tRight change feasible." << endl;
+              cout << "\t\tright ahead now/future: " << nearest_vehicles["right_ahead"].s << " / " << nearest_vehicles["right_ahead"].future_s;
+              cout << "  s distance now/future: " << nearest_vehicles["right_ahead"].distance << " / " << nearest_vehicles["right_ahead"].future_distance << endl;
+              cout << "\t\tright behind now/future: " << nearest_vehicles["right_behind"].s << " / " << nearest_vehicles["right_behind"].future_s;
+              cout << "  s distance now/future: " << nearest_vehicles["right_behind"].distance << " / " << nearest_vehicles["right_behind"].future_distance << endl;
+            }
+
+
+            // TODO: caculate trajectory costs for left and/or right lane change
+
+            // do the lane change
+            if ( left_lane_change_feasible  &&  left_lane_v > right_lane_v ) {
+              lane--;
+
+            } else if ( right_lane_change_feasible  &&  right_lane_v > left_lane_v ) {
+              lane++;
+
+            } else if ( left_lane_change_feasible ) {
+              lane--;
+
+            } else if ( right_lane_change_feasible ) {
+              lane++;
 
             } else {
-              // we can't change our lanes right now; we have to adjust our velocity to the car
+              // we can't leave the lane right now; we have to adjust our velocity to the car
               // which is ahead of us
               cout << "Slowing down to " << nearest_vehicles["center_ahead"].speed << " m/s" << endl;
               slow_down = true;
-              // reference_v -= UNIT_CHANGE_V;
-              target_v = nearest_vehicles["center_ahead"].speed;
+              reference_v -= MAX_V_CHANGE;
+              reference_v = max(reference_v, nearest_vehicles["center_ahead"].speed);
+
+              // decreasing the speed even more in case the vehicle is (or will be) too close
+              if ( nearest_vehicles["center_ahead"].future_s - car_s_future < PROXIMITY_FRONTIER || nearest_vehicles["center_ahead"].s - car_s_now < PROXIMITY_FRONTIER ) {
+                reference_v -= 0.5 * MAX_V_CHANGE;
+              }
             }
 
           } else {
-
             // just keep on driving in the current lane while trying to maximize velocity
-            // TO DO
             cout << "Accelerating / keeping max. velocity (no lane change needed)." << endl;
-            // reference_v += UNIT_CHANGE_V;
-            // reference_v = min(reference_v, REFERENCE_V);
-            target_v = REFERENCE_V;
+            reference_v += MAX_V_CHANGE;
+            reference_v = min(reference_v, MAX_V);
+
+            // trying to occupy the center lane in case it's free
+            if ( lane == 0 && (nearest_vehicles["right_ahead"].id == -1  ||  nearest_vehicles["right_ahead"].future_s - car_s_future > 3*proximity_gap) ) {
+              lane++;
+
+            } else if ( lane == 2 && (nearest_vehicles["leftt_ahead"].id == -1  ||  nearest_vehicles["left_ahead"].future_s - car_s_future > 3*proximity_gap) ) {
+              lane--;
+            }
           }
 
 
           // if ( proximity_warning ) {
           //   reference_v -= UNIT_CHANGE_V;
 
-          // } else if ( reference_v < REFERENCE_V ) {
+          // } else if ( reference_v < MAX_V ) {
           //   reference_v += UNIT_CHANGE_V;
-          //   reference_v = min(reference_v, REFERENCE_V);
+          //   reference_v = min(reference_v, MAX_V);
           // }
 
 
@@ -501,9 +544,12 @@ int main() {
 
           // adding evenly spaced points in Frenet ahead of the starting reference
           // and transforming them to global map coordinates right away
-          vector<double> next_wp0 = getXY(car_s + 1.1*PROXIMITY_FRONTIER, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s + 2*PROXIMITY_FRONTIER, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s + 3*PROXIMITY_FRONTIER, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          double speed_factor = 1.75 * reference_v / MAX_V;
+          speed_factor = max(speed_factor, 1.0);
+
+          vector<double> next_wp0 = getXY(car_s + speed_factor * 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp1 = getXY(car_s + speed_factor * 60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp2 = getXY(car_s + speed_factor * 90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
           pts_x.push_back(next_wp0[0]);
           pts_x.push_back(next_wp1[0]);
@@ -538,35 +584,67 @@ int main() {
           tk::spline s;
           s.set_points(pts_x, pts_y);
 
-          // So we have a target velocity to reach (and we're gonna generate at least one point)
-          int path_segments_to_generate = max(1, PREDICTED_WAYPOINTS - prev_size);
-          double v_diff = target_v - end_path_v;
-          double segment_v_change = v_diff / path_segments_to_generate;
+          // // So we have a target velocity to reach (and we're gonna generate at least one point)
+          // int path_segments_to_generate = max(1, PREDICTED_WAYPOINTS - prev_size);
+          // double v_diff = target_v - end_path_v;
+          // double segment_v_change = v_diff / path_segments_to_generate;
 
-          // velocity change must not exceed the threshold
-          if ( abs(segment_v_change) - MAX_V_CHANGE > 0.01 ) {
-            segment_v_change = segment_v_change < 0 ? -MAX_V_CHANGE : MAX_V_CHANGE;
-          }
+          // // velocity change must not exceed the threshold
+          // if ( abs(segment_v_change) - MAX_V_CHANGE > 0.01 ) {
+          //   segment_v_change = segment_v_change < 0 ? -MAX_V_CHANGE : MAX_V_CHANGE;
+          // }
 
+          // double x_point = 0.0;
+          // double segment_v = end_path_v;
+          // cout << "end path v: " << end_path_v;
+
+          // // generating the rest of the points for the path planner
+          // for ( int i = 0;  i < path_segments_to_generate;  i++ ) {
+
+          //   // calculating the new velocity...
+          //   segment_v += segment_v_change;
+
+          //   // ...and applying constraints to it
+          //   segment_v = min(target_v, segment_v);
+          //   segment_v = min(MAX_V, segment_v);
+          //   segment_v = max(0.0, segment_v);
+
+          //   // storing the resulting value as the new "end-of-path" velocity
+          //   end_path_v = segment_v;
+
+          //   x_point += TIME_INTERVAL * segment_v;
+          //   double y_point = s(x_point);
+
+          //   // transforming back from local to global coordinate system
+          //   double x_global = x_point * cos(ref_yaw) - y_point * sin(ref_yaw);
+          //   double y_global = x_point * sin(ref_yaw) + y_point * cos(ref_yaw);
+
+          //   // we need global coordinates: shifting the point relative to the global map's origo
+          //   x_global += ref_x;
+          //   y_global += ref_y;
+
+          //   next_x_vals.push_back(x_global);
+          //   next_y_vals.push_back(y_global);
+          // }
+
+          // cout << " --> " << end_path_v << " in " << path_segments_to_generate << " steps" << endl;
+
+
+
+          // calculate how to break up spline points so that we travel at our desired reference velocity...
+          double target_x = 30.0;
+          double target_y = s(target_x);
+          double target_dist = sqrt(target_x * target_x + target_y * target_y);
+
+          // ...as presented in Aaron's 'visualisation'
+          const double N = target_dist / (TIME_INTERVAL * reference_v);
+          const double x_add_on_unit = target_x / N;
           double x_point = 0.0;
-          double segment_v = end_path_v;
-          cout << "end path v: " << end_path_v;
 
-          // generating the rest of the points for the path planner
-          for ( int i = 0;  i < path_segments_to_generate;  i++ ) {
+          // fill up the rest of our path planner after filling it previuos points.
+          for ( int i = prev_size;  i < PREDICTED_WAYPOINTS;  i++ ) {
 
-            // calculating the new velocity...
-            segment_v += segment_v_change;
-
-            // ...and applying constraints to it
-            segment_v = min(target_v, segment_v);
-            segment_v = min(REFERENCE_V, segment_v);
-            segment_v = max(0.0, segment_v);
-
-            // storing the resulting value as the new "end-of-path" velocity
-            end_path_v = segment_v;
-
-            x_point += TIME_INTERVAL * segment_v;
+            x_point += x_add_on_unit;
             double y_point = s(x_point);
 
             // transforming back from local to global coordinate system
@@ -581,46 +659,15 @@ int main() {
             next_y_vals.push_back(y_global);
           }
 
-          cout << " --> " << end_path_v << " in " << path_segments_to_generate << " steps" << endl;
-
-          // // calculate how to break up spline points so that we travel at our desired reference velocity...
-          // double target_x = 30.0;
-          // double target_y = s(target_x);
-          // double target_dist = sqrt(target_x * target_x + target_y * target_y);
-
-          // // ...as presented in Aaron's 'visualisation'
-          // const double N = target_dist / (TIME_INTERVAL * reference_v);
-          // const double x_add_on_unit = target_x / N;
-          // double x_point = 0.0;
-
-          // // fill up the rest of our path planner after filling it previuos points.
-          // for ( int i = 1;  i <= WAYPOINTS - prev_size;  i++ ) {
-
-          //   x_point += x_add_on_unit;
-          //   double y_point = s(x_point);
-
-          //   // transforming back from local to global coordinate system
-          //   double x_global = x_point * cos(ref_yaw) - y_point * sin(ref_yaw);
-          //   double y_global = x_point * sin(ref_yaw) + y_point * cos(ref_yaw);
-
-          //   // we need global coordinates: shifting the point relative to the global map's origo
-          //   x_global += ref_x;
-          //   y_global += ref_y;
-
-          //   next_x_vals.push_back(x_global);
-          //   next_y_vals.push_back(y_global);
-          // }
-          // ...as presented in Aaron's 'visualisation'
-
 
           json msgJson;
-        	msgJson["next_x"] = next_x_vals;
-        	msgJson["next_y"] = next_y_vals;
+          msgJson["next_x"] = next_x_vals;
+          msgJson["next_y"] = next_y_vals;
 
-        	auto msg = "42[\"control\","+ msgJson.dump()+"]";
+          auto msg = "42[\"control\","+ msgJson.dump()+"]";
 
-        	//this_thread::sleep_for(chrono::milliseconds(1000));
-        	ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+          //this_thread::sleep_for(chrono::milliseconds(1000));
+          ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
           }
         }
 
