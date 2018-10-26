@@ -162,16 +162,21 @@ map<string, VehicleInfo> getNearestVehicles(const vector< vector<double> > &sens
         double right_behind_future = (nearest_vehicles["right_behind"].id > -1 ? nearest_vehicles["right_behind"].future_distance : -999.0 );
 
         char buffer[80];
-        cout << endl << "---------- current (future) distances [in meters] ----------" << endl;
+        cout << endl <<
+                endl << "--------------------- Current | future distances [m] ----------" <<
+                endl << "              Left               Center              Right" <<
+                endl << "             ------             --------            -------" << endl;
 
-        sprintf(buffer, " %+6.1f (%+6.1f)                     %+6.1f (%+6.1f) ", left_ahead, left_ahead_future, right_ahead, right_ahead_future);
+        sprintf(buffer, "Ahead:   %+6.1f | %+6.1f                      %+6.1f | %+6.1f", left_ahead, left_ahead_future, right_ahead, right_ahead_future);
         cout << string(buffer) << endl;
 
-        sprintf(buffer, "                   %+6.1f (%+6.1f)", center_ahead, center_ahead_future);
+        sprintf(buffer, "Ahead:                      %+6.1f | %+6.1f", center_ahead, center_ahead_future);
         cout << string(buffer) << endl;
 
-        sprintf(buffer, " %+6.1f (%+6.1f)                     %+6.1f (%+6.1f) ", left_behind, left_behind_future, right_behind, right_behind_future);
-        cout << string(buffer) << endl;
+        sprintf(buffer, "Behind:  %+6.1f | %+6.1f                      %+6.1f | %+6.1f", left_behind, left_behind_future, right_behind, right_behind_future);
+
+
+        cout << string(buffer) << endl << "---------------------------------------------------------------" << endl;
     }
   }
 

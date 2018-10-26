@@ -4,6 +4,7 @@
 #include <map>
 #include <math.h>
 #include <string>
+#include <sstream>
 #include <thread>
 #include <uWS/uWS.h>
 #include <vector>
@@ -59,12 +60,12 @@ int main(int argc, char* argv[]) {
     map_waypoints_dy.push_back(d_y);
   }
 
-  // initial ego vehicle lane, desired reference velocity and control variable for debug output
+  // initial ego vehicle lane, current reference velocity and control variable for debug output
   int lane = 1;
   double reference_v = 0.0;
   double debug = false;
 
-  // processing command line parameter[s]
+  // processing command line parameter[s] (okay, we're only prepared to react to "debug")
  for( int i = 1;  i < argc;  i++ ) {
 
     string param = string(argv[i]);
@@ -120,114 +121,133 @@ int main(int argc, char* argv[]) {
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
+          // number of the previous (inherited) waypoints
           int prev_size = previous_path_x.size();
 
           // saving the current S position and determining the best known future position of the ego vehicle
           double car_s_now = car_s;
           double car_s_future = prev_size > 0 ? end_path_s : car_s;
 
-          // kind of "state" variable (...)
-          bool lane_change_needed = false;
-
-          // adaptive proximity gap
-          double proximity_gap = PROXIMITY_FRONTIER * reference_v / MAX_V;
-          proximity_gap = max(proximity_gap, MIN_GAP);
-
           // collecting information about the vehicles that are the closest to our position (along the S axis)
           map<string, VehicleInfo> nearest_vehicles = getNearestVehicles(sensor_fusion, lane,
                                                                          car_s_now, car_s_future,
                                                                          prev_size, debug);
-          // now that we have all required information at our hands...
+          // adaptive proximity gap
+          double proximity_gap = PROXIMITY_FRONTIER * reference_v / MAX_V;
+          proximity_gap = max(proximity_gap, MIN_GAP);
+
+          // buffer for debug messages
+          stringstream message;
+
+          // are we approaching a vehicle in our lane within the foreseeable future?
           if ( nearest_vehicles["center_ahead"].id > -1  &&  nearest_vehicles["center_ahead"].future_distance < proximity_gap ) {
 
-            // cout << "LANE CHANGE NEEDED. Distance to the closest car (" << nearest_vehicles["center_ahead"].id << ") in the future: " << nearest_vehicles["center_ahead"].future_distance << " meters (actual: " << nearest_vehicles["center_ahead"].distance << " meters)" << endl;
-            lane_change_needed = true;
-          }
+            message << "Lane change needed. ";
 
-
-          if ( lane_change_needed ) {
-
-            // trying to change the lane: find whether there's enough gap for a merge
+            // trying to change the lane: determine whether there's enough gap for a merge
             bool left_lane_change_feasible = lane > 0;
-            left_lane_change_feasible &= nearest_vehicles["left_ahead"].id == -1 || nearest_vehicles["left_ahead"].future_s > car_s_future + 3*VEHICLE_LENGTH;
-            left_lane_change_feasible &= nearest_vehicles["left_behind"].id == -1 || nearest_vehicles["left_behind"].future_s < car_s_future - 2*VEHICLE_LENGTH;
-            left_lane_change_feasible &= nearest_vehicles["left_behind"].id == -1 || nearest_vehicles["left_behind"].s < car_s_now - VEHICLE_LENGTH;
+            if ( nearest_vehicles["left_ahead"].id > -1 ) {
+
+              left_lane_change_feasible &= nearest_vehicles["left_ahead"].s > car_s_now + 3*VEHICLE_LENGTH;
+              left_lane_change_feasible &= nearest_vehicles["left_ahead"].future_s > car_s_future + 3*VEHICLE_LENGTH;
+            }
+
+            if ( nearest_vehicles["left_behind"].id > -1 ) {
+
+              left_lane_change_feasible &= nearest_vehicles["left_behind"].s < car_s_now - 2*VEHICLE_LENGTH;
+              left_lane_change_feasible &= nearest_vehicles["left_behind"].future_s < car_s_future - 2*VEHICLE_LENGTH;
+            }
 
             double left_lane_v = MAX_V;
-            if ( nearest_vehicles["left_ahead"].future_s < nearest_vehicles["center_ahead"].future_s + 2*proximity_gap ) {
+            if ( nearest_vehicles["left_ahead"].id > -1 && nearest_vehicles["left_ahead"].future_s < car_s_future + 2*proximity_gap ) {
               left_lane_v = nearest_vehicles["left_ahead"].speed;
             }
 
             bool right_lane_change_feasible = lane < 2;
-            right_lane_change_feasible &= nearest_vehicles["right_ahead"].id == -1 || nearest_vehicles["right_ahead"].future_s > nearest_vehicles["center_ahead"].future_s + VEHICLE_LENGTH;
-            right_lane_change_feasible &= nearest_vehicles["right_behind"].id == -1 || nearest_vehicles["right_behind"].future_s < nearest_vehicles["center_ahead"].future_s - proximity_gap - VEHICLE_LENGTH;
-            right_lane_change_feasible &= nearest_vehicles["right_behind"].id == -1 || nearest_vehicles["right_behind"].s < car_s_now - VEHICLE_LENGTH;
+            if ( nearest_vehicles["right_ahead"].id > -1 ) {
+
+              right_lane_change_feasible &= nearest_vehicles["right_ahead"].s > car_s_now + 3*VEHICLE_LENGTH;
+              right_lane_change_feasible &= nearest_vehicles["right_ahead"].future_s > car_s_future + 3*VEHICLE_LENGTH;
+            }
+
+            if ( nearest_vehicles["right_behind"].id > -1 ) {
+
+              right_lane_change_feasible &= nearest_vehicles["right_behind"].s < car_s_now - 2*VEHICLE_LENGTH;
+              right_lane_change_feasible &= nearest_vehicles["right_behind"].future_s < car_s_future - 2*VEHICLE_LENGTH;
+            }
 
             double right_lane_v = MAX_V;
-            if ( nearest_vehicles["right_ahead"].future_s < nearest_vehicles["center_ahead"].future_s + 2*proximity_gap ) {
+            if ( nearest_vehicles["right_ahead"].id > -1 && nearest_vehicles["right_ahead"].future_s < car_s_future + 2*proximity_gap ) {
               right_lane_v = nearest_vehicles["right_ahead"].speed;
             }
 
-            // if ( left_lane_change_feasible ) {
-            //   cout << "\tLeft change feasible." << endl;
-            //   cout << "\t\tLeft ahead now/future: " << nearest_vehicles["left_ahead"].s << " / " << nearest_vehicles["left_ahead"].future_s;
-            //   cout << "  s distance now/future: " << nearest_vehicles["left_ahead"].distance << " / " << nearest_vehicles["left_ahead"].future_distance << endl;
-            //   cout << "\t\tLeft behind now/future: " << nearest_vehicles["left_behind"].s << " / " << nearest_vehicles["left_behind"].future_s;
-            //   cout << "  s distance now/future: " << nearest_vehicles["left_behind"].distance << " / " << nearest_vehicles["left_behind"].future_distance << endl;
-            // }
+            if ( left_lane_change_feasible ) {
+              message << "Left change feasible (lane speed: " << left_lane_v << ") ";
+            }
 
-            // if ( right_lane_change_feasible ) {
-            //   cout << "\tRight change feasible." << endl;
-            //   cout << "\t\tright ahead now/future: " << nearest_vehicles["right_ahead"].s << " / " << nearest_vehicles["right_ahead"].future_s;
-            //   cout << "  s distance now/future: " << nearest_vehicles["right_ahead"].distance << " / " << nearest_vehicles["right_ahead"].future_distance << endl;
-            //   cout << "\t\tright behind now/future: " << nearest_vehicles["right_behind"].s << " / " << nearest_vehicles["right_behind"].future_s;
-            //   cout << "  s distance now/future: " << nearest_vehicles["right_behind"].distance << " / " << nearest_vehicles["right_behind"].future_distance << endl;
-            // }
+            if ( right_lane_change_feasible ) {
+              message << "Right change feasible (lane speed: " << right_lane_v << ") ";
+            }
 
 
             // TODO: caculate trajectory costs for left and/or right lane change
 
             // do the lane change
             if ( left_lane_change_feasible  &&  left_lane_v > right_lane_v ) {
+              message << "Changing left. ";
               lane--;
 
             } else if ( right_lane_change_feasible  &&  right_lane_v > left_lane_v ) {
+              message << "Changing right. ";
               lane++;
 
             } else if ( left_lane_change_feasible ) {
+              message << "Changing left. ";
               lane--;
 
             } else if ( right_lane_change_feasible ) {
+              message << "Changing right. ";
               lane++;
 
             } else {
-              // we can't leave the lane right now; we have to adjust our velocity to the car
-              // which is ahead of us
-              // cout << "Slowing down to " << nearest_vehicles["center_ahead"].speed << " m/s" << endl;
+              // we can't leave the lane right now; we have to adjust our velocity to the car which is ahead of us
               reference_v -= MAX_V_CHANGE;
               reference_v = max(reference_v, nearest_vehicles["center_ahead"].speed);
+              message << "Keeping lane and slowing down (" << reference_v << ") ";
 
-              // decreasing the speed even more in case the vehicle is (or will be) too close
+              // decreasing the speed even more in case the vehicle is (or is going to be) too close
               if ( nearest_vehicles["center_ahead"].future_s - car_s_future < PROXIMITY_FRONTIER || nearest_vehicles["center_ahead"].s - car_s_now < PROXIMITY_FRONTIER ) {
                 reference_v -= 0.5 * MAX_V_CHANGE;
+                message << "!! (" << reference_v << ") ";
               }
             }
 
           } else {
             // just keep on driving in the current lane while trying to maximize velocity
-            // cout << "Accelerating / keeping max. velocity (no lane change needed)." << endl;
             reference_v += MAX_V_CHANGE;
             reference_v = min(reference_v, MAX_V);
 
-            // trying to occupy the center lane in case it's free
-            if ( lane == 0 && (nearest_vehicles["right_ahead"].id == -1  ||  nearest_vehicles["right_ahead"].future_s - car_s_future > 3*proximity_gap) ) {
+            message << "Accelerating to " << reference_v << " m/s. ";
+
+            // trying to return to the center lane in case it's free
+            if (    lane == 0
+                 && (nearest_vehicles["right_ahead"].id == -1  ||  nearest_vehicles["right_ahead"].future_s > car_s_future + 3*proximity_gap)
+                 && (nearest_vehicles["right_behind"].id == -1  ||  nearest_vehicles["right_behind"].future_s < car_s_future - 2*VEHICLE_LENGTH) ) {
+              message << "Returning to the center lane. ";
               lane++;
 
-            } else if ( lane == 2 && (nearest_vehicles["leftt_ahead"].id == -1  ||  nearest_vehicles["left_ahead"].future_s - car_s_future > 3*proximity_gap) ) {
+            } else if (    lane == 2
+                        && (nearest_vehicles["left_ahead"].id == -1  ||  nearest_vehicles["left_ahead"].future_s > car_s_future + 3*proximity_gap)
+                        && (nearest_vehicles["left_behind"].id == -1  ||  nearest_vehicles["leftt_behind"].future_s < car_s_future - 2*VEHICLE_LENGTH) ) {
+              message << "Returning to the center lane. ";
               lane--;
             }
           }
 
+          // Displaying debug info
+          if ( debug ) {
+            cout << message.str() << endl;
+          }
 
           // variables that will hold the X-Y coordinates of the reference points for the spline
           std::vector<double> pts_x;
@@ -268,7 +288,7 @@ int main(int argc, char* argv[]) {
 
           // adding evenly spaced points in Frenet ahead of the starting reference
           // and transforming them to global map coordinates right away
-          double speed_factor = 1.75 * reference_v / MAX_V;
+          double speed_factor = 1.7 * reference_v / MAX_V;
           speed_factor = max(speed_factor, 1.0);
 
           vector<double> next_wp0 = getXY(car_s + speed_factor * 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -365,7 +385,7 @@ int main(int argc, char* argv[]) {
           const double x_add_on_unit = target_x / N;
           double x_point = 0.0;
 
-          // fill up the rest of our path planner after filling it previuos points.
+          // fill up the rest of our path planner after filling it with previuos points
           for ( int i = prev_size;  i < PREDICTED_WAYPOINTS;  i++ ) {
 
             x_point += x_add_on_unit;
