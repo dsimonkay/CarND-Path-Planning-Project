@@ -9,7 +9,10 @@ const double MAX_S = 6945.554;
 const double LANE_WIDTH = 4.0;            // meters
 
 // a theoretical vehicle length
-const double VEHICLE_LENGTH = 6.0;        // meters
+const double VEHICLE_LENGTH = 5.0;        // meters
+
+const double SAFE_DISTANCE_BEHIND = 9;
+// const double SAFE_DISTANCE_AHEAD = 30;
 
 // number of waypoints predicted by the planner
 const int PREDICTED_WAYPOINTS = 50;

@@ -60,9 +60,13 @@ int main(int argc, char* argv[]) {
     map_waypoints_dy.push_back(d_y);
   }
 
-  // initial ego vehicle lane, current reference velocity and control variable for debug output
+  // (initial) ego vehicle lane and for lane change
   int lane = 1;
+
+  // reference velocity
   double reference_v = 0.0;
+
+  // control variable for debug output
   double debug = false;
 
   // processing command line parameter[s] (okay, we're only prepared to react to "debug")
@@ -79,7 +83,8 @@ int main(int argc, char* argv[]) {
 
 
   h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s, &map_waypoints_dx, &map_waypoints_dy,
-               &lane, &reference_v, &debug](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+               &lane, &reference_v, &debug]
+        (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
 
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -128,84 +133,64 @@ int main(int argc, char* argv[]) {
           double car_s_now = car_s;
           double car_s_future = prev_size > 0 ? end_path_s : car_s;
 
-          // collecting information about the vehicles that are the closest to our position (along the S axis)
-          map<string, VehicleInfo> nearest_vehicles = getNearestVehicles(sensor_fusion, lane,
-                                                                         car_s_now, car_s_future,
-                                                                         prev_size, debug);
-          // adaptive proximity gap
-          double proximity_gap = PROXIMITY_FRONTIER * reference_v / MAX_V;
-          proximity_gap = max(proximity_gap, MIN_GAP);
+          // anticipated velocity values for the left and right lanes
+          double left_lane_v;
+          double right_lane_v;
+
+          // flags controlling the lane change
+          bool left_lane_change_feasible = lane > 0;
+          bool right_lane_change_feasible = lane < 2;
+          bool lane_change_needed = false;
+
+          // have we (almost) finished an eventually ongoing lane change operation?
+          bool lane_change_in_progress = abs(car_d - (double)(2+lane*4)) > 0.5;
 
           // buffer for debug messages
           stringstream message;
 
+          // adaptive proximity gap
+          double proximity_gap = PROXIMITY_FRONTIER * reference_v / MAX_V;
+          proximity_gap = max(proximity_gap, MIN_GAP);
+
+          // collecting information about the vehicles that are the closest to our position
+          // (along the S axis) in each lane
+          map<string, VehicleInfo> nearest_vehicles = processSensorFusionData(sensor_fusion,
+                                                                              lane,
+                                                                              reference_v,
+                                                                              car_s_now,
+                                                                              car_s_future,
+                                                                              proximity_gap,
+                                                                              prev_size,
+                                                                              left_lane_v,
+                                                                              right_lane_v,
+                                                                              left_lane_change_feasible,
+                                                                              right_lane_change_feasible,
+                                                                              lane_change_needed,
+                                                                              debug);
           // are we approaching a vehicle in our lane within the foreseeable future?
-          if ( nearest_vehicles["center_ahead"].id > -1  &&  nearest_vehicles["center_ahead"].future_distance < proximity_gap ) {
+          // if ( nearest_vehicles["center_ahead"].id > -1  &&  nearest_vehicles["center_ahead"].future_distance < proximity_gap ) {
+          if ( lane_change_needed ) {
 
             message << "Lane change needed. ";
 
-            // trying to change the lane: determine whether there's enough gap for a merge
-            bool left_lane_change_feasible = lane > 0;
-            if ( nearest_vehicles["left_ahead"].id > -1 ) {
+            // do the lane change -- if not right in the middle of changing it
+            if ( !lane_change_in_progress  &&  left_lane_change_feasible  &&  right_lane_change_feasible ) {
 
-              left_lane_change_feasible &= nearest_vehicles["left_ahead"].s > car_s_now + 3*VEHICLE_LENGTH;
-              left_lane_change_feasible &= nearest_vehicles["left_ahead"].future_s > car_s_future + 3*VEHICLE_LENGTH;
-            }
+              // we can pick a target lane; both of the are free
+              if ( left_lane_v > right_lane_v ) {
+                message << "Changing left. ";
+                lane--;
 
-            if ( nearest_vehicles["left_behind"].id > -1 ) {
+              } else {
+                message << "Changing right. ";
+                lane++;
+              }
 
-              left_lane_change_feasible &= nearest_vehicles["left_behind"].s < car_s_now - 2*VEHICLE_LENGTH;
-              left_lane_change_feasible &= nearest_vehicles["left_behind"].future_s < car_s_future - 2*VEHICLE_LENGTH;
-            }
-
-            double left_lane_v = MAX_V;
-            if ( nearest_vehicles["left_ahead"].id > -1 && nearest_vehicles["left_ahead"].future_s < car_s_future + 2*proximity_gap ) {
-              left_lane_v = nearest_vehicles["left_ahead"].speed;
-            }
-
-            bool right_lane_change_feasible = lane < 2;
-            if ( nearest_vehicles["right_ahead"].id > -1 ) {
-
-              right_lane_change_feasible &= nearest_vehicles["right_ahead"].s > car_s_now + 3*VEHICLE_LENGTH;
-              right_lane_change_feasible &= nearest_vehicles["right_ahead"].future_s > car_s_future + 3*VEHICLE_LENGTH;
-            }
-
-            if ( nearest_vehicles["right_behind"].id > -1 ) {
-
-              right_lane_change_feasible &= nearest_vehicles["right_behind"].s < car_s_now - 2*VEHICLE_LENGTH;
-              right_lane_change_feasible &= nearest_vehicles["right_behind"].future_s < car_s_future - 2*VEHICLE_LENGTH;
-            }
-
-            double right_lane_v = MAX_V;
-            if ( nearest_vehicles["right_ahead"].id > -1 && nearest_vehicles["right_ahead"].future_s < car_s_future + 2*proximity_gap ) {
-              right_lane_v = nearest_vehicles["right_ahead"].speed;
-            }
-
-            if ( left_lane_change_feasible ) {
-              message << "Left change feasible (lane speed: " << left_lane_v << ") ";
-            }
-
-            if ( right_lane_change_feasible ) {
-              message << "Right change feasible (lane speed: " << right_lane_v << ") ";
-            }
-
-
-            // TODO: caculate trajectory costs for left and/or right lane change
-
-            // do the lane change
-            if ( left_lane_change_feasible  &&  left_lane_v > right_lane_v ) {
+            } else if ( !lane_change_in_progress  &&  left_lane_change_feasible ) {
               message << "Changing left. ";
               lane--;
 
-            } else if ( right_lane_change_feasible  &&  right_lane_v > left_lane_v ) {
-              message << "Changing right. ";
-              lane++;
-
-            } else if ( left_lane_change_feasible ) {
-              message << "Changing left. ";
-              lane--;
-
-            } else if ( right_lane_change_feasible ) {
+            } else if ( !lane_change_in_progress  &&  right_lane_change_feasible ) {
               message << "Changing right. ";
               lane++;
 
@@ -216,7 +201,8 @@ int main(int argc, char* argv[]) {
               message << "Keeping lane and slowing down (" << reference_v << ") ";
 
               // decreasing the speed even more in case the vehicle is (or is going to be) too close
-              if ( nearest_vehicles["center_ahead"].future_s - car_s_future < PROXIMITY_FRONTIER || nearest_vehicles["center_ahead"].s - car_s_now < PROXIMITY_FRONTIER ) {
+              if (    nearest_vehicles["center_ahead"].future_s - car_s_future < proximity_gap
+                   || nearest_vehicles["center_ahead"].s - car_s_now < proximity_gap ) {
                 reference_v -= 0.5 * MAX_V_CHANGE;
                 message << "!! (" << reference_v << ") ";
               }
@@ -229,16 +215,16 @@ int main(int argc, char* argv[]) {
 
             message << "Accelerating to " << reference_v << " m/s. ";
 
-            // trying to return to the center lane in case it's free
+            // trying to return to the center lane in case it's feasible
             if (    lane == 0
-                 && (nearest_vehicles["right_ahead"].id == -1  ||  nearest_vehicles["right_ahead"].future_s > car_s_future + 3*proximity_gap)
-                 && (nearest_vehicles["right_behind"].id == -1  ||  nearest_vehicles["right_behind"].future_s < car_s_future - 2*VEHICLE_LENGTH) ) {
+                 && right_lane_change_feasible
+                 && (nearest_vehicles["right_ahead"].id == -1  ||  nearest_vehicles["right_ahead"].future_s > car_s_future + 3*proximity_gap) ) {
               message << "Returning to the center lane. ";
               lane++;
 
             } else if (    lane == 2
-                        && (nearest_vehicles["left_ahead"].id == -1  ||  nearest_vehicles["left_ahead"].future_s > car_s_future + 3*proximity_gap)
-                        && (nearest_vehicles["left_behind"].id == -1  ||  nearest_vehicles["leftt_behind"].future_s < car_s_future - 2*VEHICLE_LENGTH) ) {
+                        && left_lane_change_feasible
+                        && (nearest_vehicles["left_ahead"].id == -1  ||  nearest_vehicles["left_ahead"].future_s > car_s_future + 3*proximity_gap) ) {
               message << "Returning to the center lane. ";
               lane--;
             }
@@ -291,9 +277,9 @@ int main(int argc, char* argv[]) {
           double speed_factor = 1.7 * reference_v / MAX_V;
           speed_factor = max(speed_factor, 1.0);
 
-          vector<double> next_wp0 = getXY(car_s + speed_factor * 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s + speed_factor * 60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s + speed_factor * 90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp0 = getXY(car_s + speed_factor*30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp1 = getXY(car_s + speed_factor*30 + 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          vector<double> next_wp2 = getXY(car_s + speed_factor*30 + 60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
           pts_x.push_back(next_wp0[0]);
           pts_x.push_back(next_wp1[0]);

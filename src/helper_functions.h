@@ -46,12 +46,19 @@ struct VehicleInfo {
  * The terms "left", "center" and "right" are relative to the ego vehicle's current lane. In case no vehicle can
  * be detected in the give location, the "id" member of the VehicleInfo data structure will be set to -1.
  */
-map<string, VehicleInfo> getNearestVehicles(const vector< vector<double> > &sensor_fusion,
-                                            int ego_lane,
-                                            double ego_s_now,
-                                            double ego_s_future,
-                                            int prediction_horizon,
-                                            bool debug) {
+map<string, VehicleInfo> processSensorFusionData(const vector< vector<double> > &sensor_fusion,
+                                                 int ego_lane,
+                                                 double ego_v,
+                                                 double ego_s_now,
+                                                 double ego_s_future,
+                                                 double proximity_gap,
+                                                 int prediction_horizon,
+                                                 double &left_lane_v,
+                                                 double &right_lane_v,
+                                                 bool &left_lane_change_feasible,
+                                                 bool &right_lane_change_feasible,
+                                                 bool &lane_change_needed,
+                                                 bool debug) {
 
   map<string, VehicleInfo> nearest_vehicles;
 
@@ -86,16 +93,27 @@ map<string, VehicleInfo> getNearestVehicles(const vector< vector<double> > &sens
     // projecting the vehicle's position into the future
     double check_car_s_future = check_car_s + (double)prediction_horizon * TIME_SLOT * check_car_speed;
 
-    // assembling info register key: lane part
+    // calculating vehicle distance (=that is, the difference along the S axis!) now and in the hypothetical future
+    double distance_to_vehicle = check_car_s - ego_s_now;
+    double future_distance_to_vehicle = check_car_s_future - ego_s_future;
+
+    // checking whether this vehicles stays behind us OR in front of us in a safe distance
+    bool distance_to_vehicle_is_safe =    (ego_s_now - check_car_s > SAFE_DISTANCE_BEHIND && ego_s_future - check_car_s_future > SAFE_DISTANCE_BEHIND)
+                                       || (check_car_s - ego_s_now > proximity_gap  && check_car_s_future - ego_s_future > proximity_gap);
+
+    // assembling info register key and determining lange change feasibility or the necessity to change the lane
     string lane_key;
     if ( check_car_lane == ego_lane - 1 ) {
       lane_key = "left_";
+      left_lane_change_feasible &= distance_to_vehicle_is_safe;
 
     } else if ( check_car_lane == ego_lane ) {
       lane_key = "center_";
+      lane_change_needed |= check_car_is_ahead && future_distance_to_vehicle < proximity_gap;
 
     } else if ( check_car_lane == ego_lane + 1 ) {
       lane_key = "right_";
+      right_lane_change_feasible &= distance_to_vehicle_is_safe;
 
     } else {
       // ignoring a vehicle which is two lanes away from our lane
@@ -108,10 +126,6 @@ map<string, VehicleInfo> getNearestVehicles(const vector< vector<double> > &sens
 
     string behind = lane_key;
     behind.append("behind");
-
-    // calculating vehicle distance now and in the hypothetical future
-    double distance_to_vehicle = (double)(sensor_fusion[i][5]) - ego_s_now;
-    double future_distance_to_vehicle = check_car_s_future - ego_s_future;
 
     // if ( check_car_is_ahead  &&  future_distance_to_vehicle < nearest_vehicles[ahead].future_distance ) {
     if ( check_car_is_ahead  &&  distance_to_vehicle < nearest_vehicles[ahead].distance ) {
@@ -152,31 +166,63 @@ map<string, VehicleInfo> getNearestVehicles(const vector< vector<double> > &sens
         double left_ahead = (nearest_vehicles["left_ahead"].id > -1 ? nearest_vehicles["left_ahead"].distance : 999.0 );
         double left_behind = (nearest_vehicles["left_behind"].id > -1 ? nearest_vehicles["left_behind"].distance : -999.0 );
         double center_ahead = (nearest_vehicles["center_ahead"].id > -1 ? nearest_vehicles["center_ahead"].distance : 999.0 );
+        double center_behind = (nearest_vehicles["center_behind"].id > -1 ? nearest_vehicles["center_behind"].distance : -999.0 );
         double right_ahead = (nearest_vehicles["right_ahead"].id > -1 ? nearest_vehicles["right_ahead"].distance : 999.0 );
         double right_behind = (nearest_vehicles["right_behind"].id > -1 ? nearest_vehicles["right_behind"].distance : -999.0 );
 
         double left_ahead_future = (nearest_vehicles["left_ahead"].id > -1 ? nearest_vehicles["left_ahead"].future_distance : 999.0 );
         double left_behind_future = (nearest_vehicles["left_behind"].id > -1 ? nearest_vehicles["left_behind"].future_distance : -999.0 );
         double center_ahead_future = (nearest_vehicles["center_ahead"].id > -1 ? nearest_vehicles["center_ahead"].future_distance : 999.0 );
+        double center_behind_future = (nearest_vehicles["center_behind"].id > -1 ? nearest_vehicles["center_behindd"].future_distance : -999.0 );
         double right_ahead_future = (nearest_vehicles["right_ahead"].id > -1 ? nearest_vehicles["right_ahead"].future_distance : 999.0 );
         double right_behind_future = (nearest_vehicles["right_behind"].id > -1 ? nearest_vehicles["right_behind"].future_distance : -999.0 );
 
         char buffer[80];
         cout << endl <<
-                endl << "--------------------- Current | future distances [m] ----------" <<
-                endl << "              Left               Center              Right" <<
-                endl << "             ------             --------            -------" << endl;
+                endl << "--------------------  Current | future distances [m]  ----------------" <<
+                endl << "              Left                  Center                Right" <<
+                endl << "             ------                --------              -------" <<
+                endl << "Safe?        " << (left_lane_change_feasible ? " safe  " : "BLOCKED") <<
+                        "                " << (lane_change_needed ? "CHANGE" : " safe ") <<
+                        "               " << (right_lane_change_feasible ? " safe" : "BLOCKED") << endl;
 
-        sprintf(buffer, "Ahead:   %+6.1f | %+6.1f                      %+6.1f | %+6.1f", left_ahead, left_ahead_future, right_ahead, right_ahead_future);
+        sprintf(buffer, "Ahead:   %+6.1f | %+6.1f       %+6.1f | %+6.1f       %+6.1f | %+6.1f",
+                left_ahead, left_ahead_future, center_ahead, center_ahead_future, right_ahead, right_ahead_future);
         cout << string(buffer) << endl;
 
-        sprintf(buffer, "Ahead:                      %+6.1f | %+6.1f", center_ahead, center_ahead_future);
+        sprintf(buffer, "Behind:  %+6.1f | %+6.1f       %+6.1f | %+6.1f       %+6.1f | %+6.1f",
+                left_behind, left_behind_future, center_behind, center_behind_future, right_behind, right_behind_future);
         cout << string(buffer) << endl;
+        cout <<         "----------------------------------------------------------------------" << endl;
+    }
+  }
 
-        sprintf(buffer, "Behind:  %+6.1f | %+6.1f                      %+6.1f | %+6.1f", left_behind, left_behind_future, right_behind, right_behind_future);
+  // determining anticipated velocity values for the lanes (if that's possible)
+  left_lane_v = 0.0;
+  if ( left_lane_change_feasible ) {
 
+    // adjust lane speed to the nearest vehicle in case it's close enough
+    if (    nearest_vehicles["left_ahead"].id > -1
+         && nearest_vehicles["left_ahead"].future_s < ego_s_future + 2*proximity_gap ) {
+      left_lane_v = nearest_vehicles["left_ahead"].speed;
 
-        cout << string(buffer) << endl << "---------------------------------------------------------------" << endl;
+    } else {
+      // press the pedal to the metal
+      left_lane_v = MAX_V;
+    }
+  }
+
+  right_lane_v = 0.0;
+  if ( right_lane_change_feasible ) {
+
+    // adjust lane speed to the nearest vehicle in case it's close enough
+    if (    nearest_vehicles["right_ahead"].id > -1
+         && nearest_vehicles["right_ahead"].future_s < ego_s_future + 2*proximity_gap ) {
+      right_lane_v = nearest_vehicles["right_ahead"].speed;
+
+    } else {
+      // press the pedal to the metal
+      right_lane_v = MAX_V;
     }
   }
 
