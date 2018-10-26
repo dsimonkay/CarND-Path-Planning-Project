@@ -4,7 +4,6 @@
 #include <map>
 #include <math.h>
 #include <string>
-#include <sstream>
 #include <thread>
 #include <uWS/uWS.h>
 #include <vector>
@@ -60,7 +59,7 @@ int main(int argc, char* argv[]) {
     map_waypoints_dy.push_back(d_y);
   }
 
-  // (initial) ego vehicle lane and for lane change
+  // ego vehicle lane
   int lane = 1;
 
   // reference velocity
@@ -127,113 +126,50 @@ int main(int argc, char* argv[]) {
           vector<double> next_y_vals;
 
           // number of the previous (inherited) waypoints
-          int prev_size = previous_path_x.size();
+          int path_size = previous_path_x.size();
 
           // saving the current S position and determining the best known future position of the ego vehicle
           double car_s_now = car_s;
-          double car_s_future = prev_size > 0 ? end_path_s : car_s;
+          double car_s_future = path_size > 0 ? end_path_s : car_s_now;
 
-          // anticipated velocity values for the left and right lanes
-          double left_lane_v;
-          double right_lane_v;
-
-          // flags controlling the lane change
+          // flags controlling lane change
           bool left_lane_change_feasible = lane > 0;
           bool right_lane_change_feasible = lane < 2;
           bool lane_change_needed = false;
 
-          // have we (almost) finished an eventually ongoing lane change operation?
+          // is an eventually ongoing lane change operation still in progress?
           bool lane_change_in_progress = abs(car_d - (double)(2+lane*4)) > 0.5;
 
-          // buffer for debug messages
-          stringstream message;
-
           // adaptive proximity gap
-          double proximity_gap = PROXIMITY_FRONTIER * reference_v / MAX_V;
-          proximity_gap = max(proximity_gap, MIN_GAP);
+          double proximity_gap = SAFE_DISTANCE_AHEAD;
+          proximity_gap *= (USE_ADAPTIVE_DISTANCE ? reference_v/MAX_V : 1.0);
+          proximity_gap = max(proximity_gap, MIN_DISTANCE);
 
           // collecting information about the vehicles that are the closest to our position
           // (along the S axis) in each lane
           map<string, VehicleInfo> nearest_vehicles = processSensorFusionData(sensor_fusion,
                                                                               lane,
-                                                                              reference_v,
                                                                               car_s_now,
                                                                               car_s_future,
                                                                               proximity_gap,
-                                                                              prev_size,
-                                                                              left_lane_v,
-                                                                              right_lane_v,
+                                                                              path_size,
                                                                               left_lane_change_feasible,
                                                                               right_lane_change_feasible,
                                                                               lane_change_needed,
                                                                               debug);
-          // are we approaching a vehicle in our lane within the foreseeable future?
-          // if ( nearest_vehicles["center_ahead"].id > -1  &&  nearest_vehicles["center_ahead"].future_distance < proximity_gap ) {
-          if ( lane_change_needed ) {
+          // this is where the magic happens (...NOT.)
+          decideWhatToDo(nearest_vehicles,
+                         lane,
+                         reference_v,
+                         car_s_now,
+                         car_s_future,
+                         proximity_gap,
+                         lane_change_in_progress,
+                         left_lane_change_feasible,
+                         right_lane_change_feasible,
+                         lane_change_needed,
+                         debug);
 
-            message << "Lane change needed. ";
-
-            // do the lane change -- if not right in the middle of changing it
-            if ( !lane_change_in_progress  &&  left_lane_change_feasible  &&  right_lane_change_feasible ) {
-
-              // we can pick a target lane; both of the are free
-              if ( left_lane_v > right_lane_v ) {
-                message << "Changing left. ";
-                lane--;
-
-              } else {
-                message << "Changing right. ";
-                lane++;
-              }
-
-            } else if ( !lane_change_in_progress  &&  left_lane_change_feasible ) {
-              message << "Changing left. ";
-              lane--;
-
-            } else if ( !lane_change_in_progress  &&  right_lane_change_feasible ) {
-              message << "Changing right. ";
-              lane++;
-
-            } else {
-              // we can't leave the lane right now; we have to adjust our velocity to the car which is ahead of us
-              reference_v -= MAX_V_CHANGE;
-              reference_v = max(reference_v, nearest_vehicles["center_ahead"].speed);
-              message << "Keeping lane and slowing down (" << reference_v << ") ";
-
-              // decreasing the speed even more in case the vehicle is (or is going to be) too close
-              if (    nearest_vehicles["center_ahead"].future_s - car_s_future < proximity_gap
-                   || nearest_vehicles["center_ahead"].s - car_s_now < proximity_gap ) {
-                reference_v -= 0.5 * MAX_V_CHANGE;
-                message << "!! (" << reference_v << ") ";
-              }
-            }
-
-          } else {
-            // just keep on driving in the current lane while trying to maximize velocity
-            reference_v += MAX_V_CHANGE;
-            reference_v = min(reference_v, MAX_V);
-
-            message << "Accelerating to " << reference_v << " m/s. ";
-
-            // trying to return to the center lane in case it's feasible
-            if (    lane == 0
-                 && right_lane_change_feasible
-                 && (nearest_vehicles["right_ahead"].id == -1  ||  nearest_vehicles["right_ahead"].future_s > car_s_future + 3*proximity_gap) ) {
-              message << "Returning to the center lane. ";
-              lane++;
-
-            } else if (    lane == 2
-                        && left_lane_change_feasible
-                        && (nearest_vehicles["left_ahead"].id == -1  ||  nearest_vehicles["left_ahead"].future_s > car_s_future + 3*proximity_gap) ) {
-              message << "Returning to the center lane. ";
-              lane--;
-            }
-          }
-
-          // Displaying debug info
-          if ( debug ) {
-            cout << message.str() << endl;
-          }
 
           // variables that will hold the X-Y coordinates of the reference points for the spline
           std::vector<double> pts_x;
@@ -246,7 +182,7 @@ int main(int argc, char* argv[]) {
           double ref_y_prev;
 
           // if the previous path is almost empty, using the car's position as starting reference
-          if ( prev_size < 2 ) {
+          if ( path_size < 2 ) {
 
             // using two points that make the path tangent to the car.
             // NOTE: cos() expects an angle in radians! -- thus the usage of ref_yaw instead of car_yaw
@@ -256,11 +192,11 @@ int main(int argc, char* argv[]) {
           } else { // using the previous path's end point as starting reference
 
             // redefine reference state as previous path's end point
-            ref_x = previous_path_x[prev_size - 1];
-            ref_y = previous_path_y[prev_size - 1];
+            ref_x = previous_path_x[path_size - 1];
+            ref_y = previous_path_y[path_size - 1];
 
-            ref_x_prev = previous_path_x[prev_size - 2];
-            ref_y_prev = previous_path_y[prev_size - 2];
+            ref_x_prev = previous_path_x[path_size - 2];
+            ref_y_prev = previous_path_y[path_size - 2];
             ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
           }
 
@@ -302,7 +238,7 @@ int main(int argc, char* argv[]) {
           }
 
           // start with all of the previous path points from last time
-          for ( int i = 0;  i < prev_size; i++ ) {
+          for ( int i = 0;  i < path_size; i++ ) {
 
             next_x_vals.push_back(previous_path_x[i]);
             next_y_vals.push_back(previous_path_y[i]);
@@ -315,7 +251,7 @@ int main(int argc, char* argv[]) {
           s.set_points(pts_x, pts_y);
 
           // // So we have a target velocity to reach (and we're gonna generate at least one point)
-          // int path_segments_to_generate = max(1, PREDICTED_WAYPOINTS - prev_size);
+          // int path_segments_to_generate = max(1, PREDICTED_WAYPOINTS - path_size);
           // double v_diff = target_v - end_path_v;
           // double segment_v_change = v_diff / path_segments_to_generate;
 
@@ -372,7 +308,7 @@ int main(int argc, char* argv[]) {
           double x_point = 0.0;
 
           // fill up the rest of our path planner after filling it with previuos points
-          for ( int i = prev_size;  i < PREDICTED_WAYPOINTS;  i++ ) {
+          for ( int i = path_size;  i < PREDICTED_WAYPOINTS;  i++ ) {
 
             x_point += x_add_on_unit;
             double y_point = s(x_point);
