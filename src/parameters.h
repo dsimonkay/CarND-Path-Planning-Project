@@ -8,9 +8,6 @@ const double MAX_S = 6945.554;
 // lane width
 const double LANE_WIDTH = 4.0;            // meters
 
-// a hypothetical vehicle length
-const double VEHICLE_LENGTH = 5.0;        // meters
-
 // number of waypoints predicted by the planner
 const int PREDICTED_WAYPOINTS = 50;
 
@@ -21,7 +18,7 @@ const double TIME_SLOT = 0.02;            // seconds
 const bool USE_ADAPTIVE_DISTANCE = true;
 const double SAFE_DISTANCE_BEHIND = 8.0;  // meters
 const double SAFE_DISTANCE_AHEAD = 30.0;  // meters
-const double MIN_DISTANCE = 20.0;         // meters
+const double MIN_DISTANCE = 15.0;         // meters
 
 // used reference velocity for maximum speed
 const double MAX_V = 22.25;               // 22.25 meter/second = 49.771832 miles/hour

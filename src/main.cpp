@@ -7,8 +7,8 @@
 #include <thread>
 #include <uWS/uWS.h>
 #include <vector>
-#include "Eigen-3.3/Eigen/Core"
-#include "Eigen-3.3/Eigen/QR"
+// #include "Eigen-3.3/Eigen/Core"
+// #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 #include "spline.h"
 #include "parameters.h"
@@ -121,10 +121,6 @@ int main(int argc, char* argv[]) {
           // Sensor Fusion Data, a list of all other cars on the same side of the road.
           auto sensor_fusion = j[1]["sensor_fusion"];
 
-          // the waypoints of the planned path
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
-
           // number of the previous (inherited) waypoints
           int path_size = previous_path_x.size();
 
@@ -170,43 +166,43 @@ int main(int argc, char* argv[]) {
                          lane_change_needed,
                          debug);
 
-
+          // generating a trajectory
           // variables that will hold the X-Y coordinates of the reference points for the spline
           std::vector<double> pts_x;
           std::vector<double> pts_y;
 
-          double ref_x = car_x;
-          double ref_y = car_y;
-          double ref_yaw = deg2rad(car_yaw);
-          double ref_x_prev;
-          double ref_y_prev;
+          double reference_x = car_x;
+          double reference_y = car_y;
+          double reference_yaw = deg2rad(car_yaw);
+          double reference_x_prev;
+          double reference_y_prev;
 
           // if the previous path is almost empty, using the car's position as starting reference
           if ( path_size < 2 ) {
 
             // using two points that make the path tangent to the car.
-            // NOTE: cos() expects an angle in radians! -- thus the usage of ref_yaw instead of car_yaw
-            ref_x_prev = car_x - cos(ref_yaw);
-            ref_y_prev = car_y - sin(ref_yaw);
+            // NOTE: cos() expects an angle in radians! -- thus the usage of reference_yaw instead of car_yaw
+            reference_x_prev = car_x - cos(reference_yaw);
+            reference_y_prev = car_y - sin(reference_yaw);
 
           } else { // using the previous path's end point as starting reference
 
             // redefine reference state as previous path's end point
-            ref_x = previous_path_x[path_size - 1];
-            ref_y = previous_path_y[path_size - 1];
+            reference_x = previous_path_x[path_size - 1];
+            reference_y = previous_path_y[path_size - 1];
 
-            ref_x_prev = previous_path_x[path_size - 2];
-            ref_y_prev = previous_path_y[path_size - 2];
-            ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
+            reference_x_prev = previous_path_x[path_size - 2];
+            reference_y_prev = previous_path_y[path_size - 2];
+            reference_yaw = atan2(reference_y - reference_y_prev, reference_x - reference_x_prev);
           }
 
           // common operation: pushing two points onto the spline defining arrays
           // that make the path tangent to the car
-          pts_x.push_back(ref_x_prev);
-          pts_x.push_back(ref_x);
+          pts_x.push_back(reference_x_prev);
+          pts_x.push_back(reference_x);
 
-          pts_y.push_back(ref_y_prev);
-          pts_y.push_back(ref_y);
+          pts_y.push_back(reference_y_prev);
+          pts_y.push_back(reference_y);
 
           // adding evenly spaced points in Frenet ahead of the starting reference
           // and transforming them to global map coordinates right away
@@ -229,13 +225,23 @@ int main(int argc, char* argv[]) {
           for( int i = 0;  i < pts_x.size();  i++ ) {
 
             // the map coordinates of the ith waypoint relative to the car (or reference point)
-            double shift_x = pts_x[i] - ref_x;
-            double shift_y = pts_y[i] - ref_y;
+            double shift_x = pts_x[i] - reference_x;
+            double shift_y = pts_y[i] - reference_y;
 
             // transforming that point to local car coordinates
-            pts_x[i] = shift_x * cos(-ref_yaw) - shift_y * sin(-ref_yaw);
-            pts_y[i] = shift_x * sin(-ref_yaw) + shift_y * cos(-ref_yaw);
+            pts_x[i] = shift_x * cos(-reference_yaw) - shift_y * sin(-reference_yaw);
+            pts_y[i] = shift_x * sin(-reference_yaw) + shift_y * cos(-reference_yaw);
           }
+
+          // creating the spline
+          tk::spline s;
+          s.set_points(pts_x, pts_y);
+
+
+
+          // the waypoints of the planned path
+          vector<double> next_x_vals;
+          vector<double> next_y_vals;
 
           // start with all of the previous path points from last time
           for ( int i = 0;  i < path_size; i++ ) {
@@ -243,58 +249,6 @@ int main(int argc, char* argv[]) {
             next_x_vals.push_back(previous_path_x[i]);
             next_y_vals.push_back(previous_path_y[i]);
           }
-
-
-
-          // creating the spline
-          tk::spline s;
-          s.set_points(pts_x, pts_y);
-
-          // // So we have a target velocity to reach (and we're gonna generate at least one point)
-          // int path_segments_to_generate = max(1, PREDICTED_WAYPOINTS - path_size);
-          // double v_diff = target_v - end_path_v;
-          // double segment_v_change = v_diff / path_segments_to_generate;
-
-          // // velocity change must not exceed the threshold
-          // if ( abs(segment_v_change) - MAX_V_CHANGE > 0.01 ) {
-          //   segment_v_change = segment_v_change < 0 ? -MAX_V_CHANGE : MAX_V_CHANGE;
-          // }
-
-          // double x_point = 0.0;
-          // double segment_v = end_path_v;
-          // cout << "end path v: " << end_path_v;
-
-          // // generating the rest of the points for the path planner
-          // for ( int i = 0;  i < path_segments_to_generate;  i++ ) {
-
-          //   // calculating the new velocity...
-          //   segment_v += segment_v_change;
-
-          //   // ...and applying constraints to it
-          //   segment_v = min(target_v, segment_v);
-          //   segment_v = min(MAX_V, segment_v);
-          //   segment_v = max(0.0, segment_v);
-
-          //   // storing the resulting value as the new "end-of-path" velocity
-          //   end_path_v = segment_v;
-
-          //   x_point += TIME_SLOT * segment_v;
-          //   double y_point = s(x_point);
-
-          //   // transforming back from local to global coordinate system
-          //   double x_global = x_point * cos(ref_yaw) - y_point * sin(ref_yaw);
-          //   double y_global = x_point * sin(ref_yaw) + y_point * cos(ref_yaw);
-
-          //   // we need global coordinates: shifting the point relative to the global map's origo
-          //   x_global += ref_x;
-          //   y_global += ref_y;
-
-          //   next_x_vals.push_back(x_global);
-          //   next_y_vals.push_back(y_global);
-          // }
-
-          // cout << " --> " << end_path_v << " in " << path_segments_to_generate << " steps" << endl;
-
 
 
           // calculate how to break up spline points so that we travel at our desired reference velocity...
@@ -314,12 +268,12 @@ int main(int argc, char* argv[]) {
             double y_point = s(x_point);
 
             // transforming back from local to global coordinate system
-            double x_global = x_point * cos(ref_yaw) - y_point * sin(ref_yaw);
-            double y_global = x_point * sin(ref_yaw) + y_point * cos(ref_yaw);
+            double x_global = x_point * cos(reference_yaw) - y_point * sin(reference_yaw);
+            double y_global = x_point * sin(reference_yaw) + y_point * cos(reference_yaw);
 
             // we need global coordinates: shifting the point relative to the global map's origo
-            x_global += ref_x;
-            y_global += ref_y;
+            x_global += reference_x;
+            y_global += reference_y;
 
             next_x_vals.push_back(x_global);
             next_y_vals.push_back(y_global);
