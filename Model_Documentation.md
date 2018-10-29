@@ -11,7 +11,7 @@ My solution does not implement a Final State Machine, nor does it calculate jerk
 
 ##### Behavior Planning
 
-The basic driving or behavioral logic is very simple: if no (slower) car is in front of us within a given gap, simply keep the lane and increase the speed until the predefined limit. If a slower car blocks the lane we're currently in (that is, this car is within the proximity gap), look for a neighboring lane to change to. If no lane change can be executed in a safe manner (there is no large enough gap to merge in), decrease the speed to keep a safe distance to the (slower) car ahead of us.
+The basic driving or behavioral logic is very simple: if no (slower) car is in front of us within a certain gap, simply keep the lane and increase the speed until the predefined limit. If a slower car blocks the lane we're currently in (that is, this car is within the proximity gap), look for a neighboring lane to change to. If no lane change can be executed in a safe manner (there is no large enough gap to merge in), decrease the speed to keep a safe distance to the (slower) car ahead of us.
 
 When looking for a gap in a neighboring lane, the program checks the difference of each vehicle's *S* coordinate from the ego vehicle's current *S* value in the sensor fusion data set. It looks for the information whether this difference in the given lane is *outside* of the range \[-7.5, +30\] meters (with the ego vehicle being at zero). It also checks whether this condition holds in the foreseeable future based on the vehicle's current speed. In case all the vehicles are (and will be) outside this range in a given lane, a change to this lane becomes feasible.
 
