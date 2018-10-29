@@ -76,7 +76,7 @@ map<string, VehicleInfo> processSensorFusionData(const vector< vector<double> > 
     bool check_car_is_ahead = distance_to_vehicle > 0;
 
     // checking whether this vehicles stays behind us OR in front of us in a safe distance
-    bool distance_to_vehicle_is_safe =    (distance_to_vehicle < -SAFE_DISTANCE_BEHIND  &&  future_distance_to_vehicle < -SAFE_DISTANCE_BEHIND)
+    bool distance_to_vehicle_is_safe =    (distance_to_vehicle < SAFE_DISTANCE_BEHIND  &&  future_distance_to_vehicle < SAFE_DISTANCE_BEHIND)
                                        || (distance_to_vehicle > proximity_gap  &&  future_distance_to_vehicle > proximity_gap);
 
     // assembling info register key and updating lange change feasibility or the necessity to change the lane
@@ -290,13 +290,13 @@ void decideWhatToDo(map<string, VehicleInfo> nearest_vehicles,
     // basic strategy: trying to return to the center lane in case it's feasible
     if (    ego_lane == 0
          && right_lane_change_feasible
-         && (nearest_vehicles["right_ahead"].id == -1  ||  s_difference(nearest_vehicles["right_ahead"].future_s, ego_s_future) > 3*proximity_gap) ) {
+         && (nearest_vehicles["right_ahead"].id == -1  ||  s_difference(nearest_vehicles["right_ahead"].future_s, ego_s_future) > 2*proximity_gap) ) {
       ego_lane++;
       message << "Returning to the center lane. ";
 
     } else if (    ego_lane == 2
                 && left_lane_change_feasible
-                && (nearest_vehicles["left_ahead"].id == -1  ||  s_difference(nearest_vehicles["left_ahead"].future_s, ego_s_future) > 3*proximity_gap) ) {
+                && (nearest_vehicles["left_ahead"].id == -1  ||  s_difference(nearest_vehicles["left_ahead"].future_s, ego_s_future) > 2*proximity_gap) ) {
       ego_lane--;
       message << "Returning to the center lane. ";
     }

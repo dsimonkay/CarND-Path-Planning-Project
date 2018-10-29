@@ -167,6 +167,7 @@ int main(int argc, char* argv[]) {
                          debug);
 
           // generating a trajectory
+
           // variables that will hold the X-Y coordinates of the reference points for the spline
           std::vector<double> pts_x;
           std::vector<double> pts_y;
@@ -206,7 +207,7 @@ int main(int argc, char* argv[]) {
 
           // adding evenly spaced points in Frenet ahead of the starting reference
           // and transforming them to global map coordinates right away
-          double speed_factor = 1.7 * reference_v / MAX_V;
+          double speed_factor = 1.8 * reference_v / MAX_V;
           speed_factor = max(speed_factor, 1.0);
 
           vector<double> next_wp0 = getXY(car_s + speed_factor*30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -238,6 +239,7 @@ int main(int argc, char* argv[]) {
           s.set_points(pts_x, pts_y);
 
 
+          // BUILDING THE WAYPOINTS CONSTITUTING THE PATH
 
           // the waypoints of the planned path
           vector<double> next_x_vals;

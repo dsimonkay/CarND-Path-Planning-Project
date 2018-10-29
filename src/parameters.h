@@ -16,7 +16,7 @@ const double TIME_SLOT = 0.02;            // seconds
 
 // distance limits between the ego vehicle and the car behind / in front of us
 const bool USE_ADAPTIVE_DISTANCE = true;
-const double SAFE_DISTANCE_BEHIND = 8.0;  // meters
+const double SAFE_DISTANCE_BEHIND = -7.5; // meters
 const double SAFE_DISTANCE_AHEAD = 30.0;  // meters
 const double MIN_DISTANCE = 15.0;         // meters
 

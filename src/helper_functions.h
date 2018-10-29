@@ -41,16 +41,16 @@ double s_difference(double s1, double s2);
 /* Function to extract the nearest vehicles in the current and the neighboring lanes relative to the ego vehicle.
  *
  * Parameters:
- *  - sensor_fusion:          a vector consisting of the following data: [id, x, y, vx, vy, s, d]
- *  - ego_lane:               the current lane (0, 1, 2) of the ego vehicle
- *  - ego_s_now:              actual coordinate of the ego vehicle along the S axis
- *  - ego_s_future:           future coordinate of the ego vehicle along the S axis
- *  - proximity_gap:          a minimum distance that has to be kept to the vehicle ahead
- *  - prediction_horizon:     number of time intervals we want to calculate the future
- *  - left_change_feasible:   [IN/OUT]  the name says it :)
- *  - right_change_feasible:  [IN/OUT]  the name says it :)
- *  - lane_change_needed:     [IN/OUT]  the name says it :)
- *  - debug:                  flag controlling whether the function should produce a debug output to the console
+ *  - sensor_fusion:              a vector consisting of the following data: [id, x, y, vx, vy, s, d]
+ *  - ego_lane:                   the current lane (0, 1, 2) of the ego vehicle
+ *  - ego_s_now:                  actual coordinate of the ego vehicle along the S axis
+ *  - ego_s_future:               future coordinate of the ego vehicle along the S axis
+ *  - proximity_gap:              a minimum distance that has to be kept to the vehicle ahead
+ *  - prediction_horizon:         number of time intervals we want to calculate the future
+ *  - left_lane_change_feasible:  [IN/OUT]  the name says it :)
+ *  - right_lane_change_feasible: [IN/OUT]  the name says it :)
+ *  - lane_change_needed:         [IN/OUT]  the name says it :)
+ *  - debug:                      flag controlling whether the function should produce a debug output to the console
  *
  * On return the following keys will be provided in the resulting map:
  *  - left_ahead
@@ -81,8 +81,8 @@ map<string, VehicleInfo> processSensorFusionData(const vector< vector<double> > 
  *
  * Parameters:
  *  - nearest_vehicles:           data delivered by processSensorFusionData()
- *  - ego_lane (IN/OUT):          the current lane (0, 1, 2) of the ego vehicle
- *  - ego_v (IN/OUT):             ego vehicle reference velocity
+ *  - ego_lane:                   [IN/OUT]  the current lane (0, 1, 2) of the ego vehicle
+ *  - ego_v:                      [IN/OUT]  ego vehicle reference velocity
  *  - ego_s_now:                  actual coordinate of the ego vehicle along the S axis
  *  - ego_s_future:               future coordinate of the ego vehicle along the S axis
  *  - proximity_gap:              a minimum distance that has to be kept to the vehicle ahead
