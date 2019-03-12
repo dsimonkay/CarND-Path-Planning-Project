@@ -163,8 +163,8 @@ std::map<std::string, VehicleInfo> processSensorFusionData(const std::vector< st
          std::endl << "              Left                  Center                Right" <<
          std::endl << "             ------                --------              -------" <<
          std::endl << "Status:  " << (left_lane_change_feasible ? "     safe      " : "### BLOCKED ###") <<
-                 "        " << (lane_change_needed ? "### CHANGE ###" : "     keep     ") <<
-                 "       " << (right_lane_change_feasible ? "     safe" : "### BLOCKED ###") << std::endl;
+                      "        " << (lane_change_needed ? "### CHANGE ###" : "     keep     ") <<
+                      "       " << (right_lane_change_feasible ? "     safe" : "### BLOCKED ###") << std::endl;
 
     sprintf(buffer, "Ahead:   %+6.1f | %+6.1f       %+6.1f | %+6.1f       %+6.1f | %+6.1f",
             left_ahead, left_ahead_future, center_ahead, center_ahead_future, right_ahead, right_ahead_future);
