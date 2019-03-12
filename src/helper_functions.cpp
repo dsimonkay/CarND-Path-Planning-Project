@@ -10,7 +10,6 @@
 #include "helper_functions.h"
 #include "helper_functions_udacity.h"
 
-using namespace std;
 using namespace tk;
 
 
@@ -29,7 +28,7 @@ double s_difference(double s1, double s2) {
 }
 
 
-map<string, VehicleInfo> processSensorFusionData(const vector< vector<double> > &sensor_fusion,
+std::map<std::string, VehicleInfo> processSensorFusionData(const std::vector< std::vector<double> > &sensor_fusion,
                                                  int ego_lane,
                                                  double ego_s_now,
                                                  double ego_s_future,
@@ -40,7 +39,7 @@ map<string, VehicleInfo> processSensorFusionData(const vector< vector<double> > 
                                                  bool &lane_change_needed,
                                                  bool debug) {
 
-  map<string, VehicleInfo> nearest_vehicles;
+  std::map<std::string, VehicleInfo> nearest_vehicles;
 
   // initializing the map to be returned
   nearest_vehicles["left_ahead"] = {-1, 0, 0.0, 0.0, 0.0, 0.0, 0.0, numeric_limits<double>::max(), numeric_limits<double>::max(), 0.0, numeric_limits<double>::max()};
@@ -80,7 +79,7 @@ map<string, VehicleInfo> processSensorFusionData(const vector< vector<double> > 
                                        || (distance_to_vehicle > proximity_gap  &&  future_distance_to_vehicle > proximity_gap);
 
     // assembling info register key and updating lange change feasibility or the necessity to change the lane
-    string lane_key;
+    std::string lane_key;
     if ( check_car_lane == ego_lane - 1 ) {
       lane_key = "left_";
       left_lane_change_feasible &= distance_to_vehicle_is_safe;
@@ -99,10 +98,10 @@ map<string, VehicleInfo> processSensorFusionData(const vector< vector<double> > 
     }
 
     // assembling keys, part 2: appending "ahead" and "behind"
-    string ahead = lane_key;
+    std::string ahead = lane_key;
     ahead.append("ahead");
 
-    string behind = lane_key;
+    std::string behind = lane_key;
     behind.append("behind");
 
     // if ( check_car_is_ahead  &&  future_distance_to_vehicle < nearest_vehicles[ahead].future_distance ) {
@@ -169,11 +168,11 @@ map<string, VehicleInfo> processSensorFusionData(const vector< vector<double> > 
 
     sprintf(buffer, "Ahead:   %+6.1f | %+6.1f       %+6.1f | %+6.1f       %+6.1f | %+6.1f",
             left_ahead, left_ahead_future, center_ahead, center_ahead_future, right_ahead, right_ahead_future);
-    cout << string(buffer) << endl;
+    cout << std::string(buffer) << endl;
 
     sprintf(buffer, "Behind:  %+6.1f | %+6.1f       %+6.1f | %+6.1f       %+6.1f | %+6.1f",
             left_behind, left_behind_future, center_behind, center_behind_future, right_behind, right_behind_future);
-    cout << string(buffer) << endl;
+    cout << std::string(buffer) << endl;
     cout <<         "----------------------------------------------------------------------" << endl;
   }
 
@@ -186,7 +185,7 @@ map<string, VehicleInfo> processSensorFusionData(const vector< vector<double> > 
 
 
 
-void decideWhatToDo(map<string, VehicleInfo> nearest_vehicles,
+void decideWhatToDo(std::map<std::string, VehicleInfo> nearest_vehicles,
                     int &ego_lane,
                     double &ego_v,
                     double ego_s_now,
@@ -199,7 +198,7 @@ void decideWhatToDo(map<string, VehicleInfo> nearest_vehicles,
                     bool debug ) {
 
   // buffer for debug messages
-  stringstream message;
+  std::stringstream message;
 
 
   // determining anticipated velocity values for the lanes (if that's possible)

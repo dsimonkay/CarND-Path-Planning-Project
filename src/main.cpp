@@ -15,8 +15,6 @@
 #include "helper_functions_udacity.h"
 #include "helper_functions.h"
 
-using namespace std;
-
 // for convenience
 using json = nlohmann::json;
 
@@ -27,21 +25,21 @@ int main(int argc, char* argv[]) {
   uWS::Hub h;
 
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
-  vector<double> map_waypoints_x;
-  vector<double> map_waypoints_y;
-  vector<double> map_waypoints_s;
-  vector<double> map_waypoints_dx;  // normal component x to the waypoint
-  vector<double> map_waypoints_dy;  // normal component y to the waypoint
+  std::vector<double> map_waypoints_x;
+  std::vector<double> map_waypoints_y;
+  std::vector<double> map_waypoints_s;
+  std::vector<double> map_waypoints_dx;  // normal component x to the waypoint
+  std::vector<double> map_waypoints_dy;  // normal component y to the waypoint
 
   // Waypoint map to read from
-  string map_file_ = "../data/highway_map.csv";
+  std::string map_file_ = "../data/highway_map.csv";
 
-  ifstream in_map_(map_file_.c_str(), ifstream::in);
+  std::ifstream in_map_(map_file_.c_str(), std::ifstream::in);
 
-  string line;
+  std::string line;
   while (getline(in_map_, line)) {
 
-    istringstream iss(line);
+    std::istringstream iss(line);
     double x;
     double y;
     float s;
@@ -71,8 +69,8 @@ int main(int argc, char* argv[]) {
   // processing command line parameter[s] (okay, we're only prepared to react to "debug")
  for( int i = 1;  i < argc;  i++ ) {
 
-    string param = string(argv[i]);
-    string param_lower;
+    std::string param = std::string(argv[i]);
+    std::string param_lower;
     transform(param.begin(), param.end(), back_inserter(param_lower), ::tolower);
 
     if ( param_lower == "-d" || param_lower == "--debug" ) {
@@ -88,7 +86,7 @@ int main(int argc, char* argv[]) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
-    //auto sdata = string(data).substr(0, length);
+    //auto sdata = std::string(data).substr(0, length);
     //cout << sdata << endl;
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
@@ -97,7 +95,7 @@ int main(int argc, char* argv[]) {
       if (s != "") {
         auto j = json::parse(s);
         
-        string event = j[0].get<string>();
+        std::string event = j[0].get<std::string>();
         
         if (event == "telemetry") {
           // j[1] is the data JSON object
@@ -143,7 +141,7 @@ int main(int argc, char* argv[]) {
 
           // collecting information about the vehicles that are the closest to our position
           // (along the S axis) in each lane
-          map<string, VehicleInfo> nearest_vehicles = processSensorFusionData(sensor_fusion,
+          std::map<std::string, VehicleInfo> nearest_vehicles = processSensorFusionData(sensor_fusion,
                                                                               lane,
                                                                               car_s_now,
                                                                               car_s_future,
@@ -210,9 +208,9 @@ int main(int argc, char* argv[]) {
           double speed_factor = 1.8 * reference_v / MAX_V;
           speed_factor = max(speed_factor, 1.0);
 
-          vector<double> next_wp0 = getXY(car_s + speed_factor*30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s + speed_factor*30 + 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s + speed_factor*30 + 60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          std::vector<double> next_wp0 = getXY(car_s + speed_factor*30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          std::vector<double> next_wp1 = getXY(car_s + speed_factor*30 + 30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          std::vector<double> next_wp2 = getXY(car_s + speed_factor*30 + 60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
           pts_x.push_back(next_wp0[0]);
           pts_x.push_back(next_wp1[0]);
@@ -242,8 +240,8 @@ int main(int argc, char* argv[]) {
           // BUILDING THE WAYPOINTS CONSTITUTING THE PATH
 
           // the waypoints of the planned path
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          std::vector<double> next_x_vals;
+          std::vector<double> next_y_vals;
 
           // start with all of the previous path points from last time
           for ( int i = 0;  i < path_size; i++ ) {

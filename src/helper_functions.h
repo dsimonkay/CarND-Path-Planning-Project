@@ -5,8 +5,6 @@
 #include <string>
 #include <vector>
 
-using namespace std;
-
 
 // Data structure used for prediction
 struct VehicleInfo {
@@ -64,7 +62,7 @@ double s_difference(double s1, double s2);
  * In case no vehicle can be detected in the give location, the "id" member of the VehicleInfo
  * data structure will be set to -1.
  */
-map<string, VehicleInfo> processSensorFusionData(const vector< vector<double> > &sensor_fusion,
+map<string, VehicleInfo> processSensorFusionData(const std::vector< std::vector<double> > &sensor_fusion,
                                                  int ego_lane,
                                                  double ego_s_now,
                                                  double ego_s_future,
@@ -92,7 +90,7 @@ map<string, VehicleInfo> processSensorFusionData(const vector< vector<double> > 
  *  - lane_change_needed:         as determined by processSensorFusionData()
  *  - debug:                      flag controlling whether the function should produce a debug output to the console
  */
-void decideWhatToDo(map<string, VehicleInfo> nearest_vehicles,
+void decideWhatToDo(std::map<std::string, VehicleInfo> nearest_vehicles,
                     int &ego_lane,
                     double &ego_v,
                     double ego_s_now,
