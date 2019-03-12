@@ -156,24 +156,24 @@ std::map<std::string, VehicleInfo> processSensorFusionData(const std::vector< st
     double right_behind_future = (nearest_vehicles["right_behind"].id > -1 ? nearest_vehicles["right_behind"].future_distance : -999.0 );
 
     char buffer[80];
-    cout << endl <<
-            endl <<
-            endl << "s: " << ego_s_now <<
-            endl << "--------------------  Current | future distances [m]  ----------------" <<
-            endl << "              Left                  Center                Right" <<
-            endl << "             ------                --------              -------" <<
-            endl << "Status:  " << (left_lane_change_feasible ? "     safe      " : "### BLOCKED ###") <<
-                    "        " << (lane_change_needed ? "### CHANGE ###" : "     keep     ") <<
-                    "       " << (right_lane_change_feasible ? "     safe" : "### BLOCKED ###") << endl;
+    std::cout << std::endl <<
+         std::endl <<
+         std::endl << "s: " << ego_s_now <<
+         std::endl << "--------------------  Current | future distances [m]  ----------------" <<
+         std::endl << "              Left                  Center                Right" <<
+         std::endl << "             ------                --------              -------" <<
+         std::endl << "Status:  " << (left_lane_change_feasible ? "     safe      " : "### BLOCKED ###") <<
+                 "        " << (lane_change_needed ? "### CHANGE ###" : "     keep     ") <<
+                 "       " << (right_lane_change_feasible ? "     safe" : "### BLOCKED ###") << std::endl;
 
     sprintf(buffer, "Ahead:   %+6.1f | %+6.1f       %+6.1f | %+6.1f       %+6.1f | %+6.1f",
             left_ahead, left_ahead_future, center_ahead, center_ahead_future, right_ahead, right_ahead_future);
-    cout << std::string(buffer) << endl;
+    std::cout << std::string(buffer) << std::endl;
 
     sprintf(buffer, "Behind:  %+6.1f | %+6.1f       %+6.1f | %+6.1f       %+6.1f | %+6.1f",
             left_behind, left_behind_future, center_behind, center_behind_future, right_behind, right_behind_future);
-    cout << std::string(buffer) << endl;
-    cout <<         "----------------------------------------------------------------------" << endl;
+    std::cout << std::string(buffer) << std::endl;
+    std::cout <<         "----------------------------------------------------------------------" << std::endl;
   }
 
   return nearest_vehicles;
@@ -303,6 +303,6 @@ void decideWhatToDo(std::map<std::string, VehicleInfo> nearest_vehicles,
 
   // wanna hear some news?
   if ( debug ) {
-    cout << message.str() << endl;
+    std::cout << message.str() << std::endl;
   }
 }
